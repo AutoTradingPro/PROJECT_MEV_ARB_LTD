@@ -1,0 +1,17 @@
+[profile.default]
+src = "contracts"
+out = "out"
+libs = ["lib"]
+script = "script"
+solc = "0.8.24"
+optimizer = true
+optimizer_runs = 200
+via_ir = false
+evm_version = "paris"
+
+# Deploy/broadcast: keyed BlockPi URLs in server .env.local (BLOCKPI_RPC_*).
+# Scanner Blockmachine URLs are not used here. Never NEXT_PUBLIC_ for private keys.
+[rpc_endpoints]
+ethereum = "${BLOCKPI_RPC_ETHEREUM}"
+polygon = "${BLOCKPI_RPC_POLYGON}"
+arbitrum = "${BLOCKPI_RPC_ARBITRUM}"

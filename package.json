@@ -1,0 +1,42 @@
+{
+  "name": "mev-arb-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "searcher": "npx tsx --env-file=.env.local searcher/index.ts",
+    "deploy:balancer-arb": "npx tsx --env-file=.env.local script/deploy-balancer-flash-arb.ts",
+    "deploy:balancer-arb:polygon": "npx tsx --env-file=.env.local script/deploy-balancer-flash-arb.ts --network polygon",
+    "deploy:balancer-arb:ethereum": "npx tsx --env-file=.env.local script/deploy-balancer-flash-arb.ts --network ethereum",
+    "deploy:balancer-arb:arbitrum": "npx tsx --env-file=.env.local script/deploy-balancer-flash-arb.ts --network arbitrum",
+    "test:vault": "forge test --match-path test/ArbitrumFlashArbExecutor.t.sol -vv"
+  },
+  "dependencies": {
+    "@reown/appkit": "^1.8.23",
+    "@reown/appkit-adapter-wagmi": "^1.8.23",
+    "@solana/web3.js": "^1.99.0",
+    "@tanstack/react-query": "^5.102.8",
+    "bs58": "^6.0.0",
+    "ethers": "^6.15.0",
+    "lucide-react": "^1.37.0",
+    "next": "16.3.3",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "viem": "^2.56.5",
+    "wagmi": "^2.19.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.3",
+    "tailwindcss": "^4",
+    "tsx": "^4.20.5",
+    "typescript": "^5"
+  }
+}
