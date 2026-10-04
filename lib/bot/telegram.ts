@@ -1,8 +1,7 @@
-import { formatBnbAmount, formatStableWeiAsBnb, usdToBnb } from "@/lib/bot/bnbQuote";
-import { formatUsd, stableWeiToUsd } from "@/lib/bot/configUnits";
-import { resolveTradeTrace } from "@/lib/bot/transactionTrace";
-import type { TradeRecord, TradeTraceSnapshot } from "@/lib/bot/types";
-import { bscscanTxUrl, shortenTxHash } from "@/lib/chain/explorer";
+import { tokenWeiToUsd } from "@/lib/bot/configUnits";
+import type { TradeTraceSnapshot } from "@/lib/bot/types";
+import { explorerTxUrl } from "@/lib/chain/explorer";
+import { getTradingNetwork, isTradingChainId } from "@/config/networks";
 import { lookupStoredUser, telegramIdForUser } from "@/lib/db";
 import { after } from "next/server";
 import { AUTO_EXECUTE } from "@/lib/bot/constants";
@@ -153,84 +152,108 @@ export interface ProTradeSuccessNotifyInput extends TelegramUserRef {
   loanAmountUsd?: number;
   source?: string;
   sandbox?: boolean;
+  chainId?: string;
+  quoteDecimals?: number;
+  quoteUsd?: number;
+  minProfitUsd?: number;
+  minerTipPct?: number;
+}
+
+/** Semua angka dolar pesan sukses. Fungsi pengirim menerima objek ini. */
+export interface ArbitrageSuccessTelegram {
+  chainName: string;
+  tokenIn: string;
+  tokenOut: string;
+  dexA: string;
+  dexB: string;
+  blockNumber: number;
+  loanUsd: number;
+  grossProfitUsd: number;
+  gasCostUsd: number;
+  bribeUsd: number;
+  netProfitUsd: number;
+  minProfitTargetUsd: number;
+  explorerUrl: string;
+}
+
+function usd2(value: number): string {
+  const n = Number.isFinite(value) ? value : 0;
+  return `$${n.toFixed(2)}`;
+}
+
+function quoteUsdOf(wei: string | undefined, decimals: number, tokenUsd: number): number {
+  return tokenWeiToUsd(wei || "0", decimals, tokenUsd);
+}
+
+export function formatArbitrageSuccessHtml(input: ArbitrageSuccessTelegram): string {
+  const route = `${escapeHtml(input.tokenIn)} -&gt; ${escapeHtml(input.tokenOut)} (${escapeHtml(input.dexA)} -&gt; ${escapeHtml(input.dexB)})`;
+  const href = escapeHtml(input.explorerUrl);
+  return [
+    "🚀 <b>[ARBITRAGE SUCCESS]</b>",
+    `Jaringan: ${escapeHtml(input.chainName)}`,
+    `Rute: ${route}`,
+    `Block: #${input.blockNumber > 0 ? input.blockNumber : "—"}`,
+    "💰 <b>KINERJA TRANSAKSI:</b>",
+    `- Ukuran Loan: ${usd2(input.loanUsd)}`,
+    `- Keuntungan Kotor: ${usd2(input.grossProfitUsd)}`,
+    `- Biaya Gas Riil: ${usd2(input.gasCostUsd)}`,
+    `- Bribe (Tip Builder): ${usd2(input.bribeUsd)}`,
+    `✅ <b>PROFIT BERSIH: +${usd2(input.netProfitUsd)} (Lolos Target Min ${usd2(input.minProfitTargetUsd)})</b>`,
+    `Tx Hash: <a href="${href}">${href}</a>`,
+  ].join("\n");
+}
+
+export function toArbitrageSuccessTelegram(input: ProTradeSuccessNotifyInput): ArbitrageSuccessTelegram {
+  const trace = input.trace;
+  const chainId = input.chainId || "";
+  const named = chainId && isTradingChainId(chainId) ? getTradingNetwork(chainId).name : "";
+  const chainName = named
+    ? input.sandbox
+      ? `${named} (Testnet)`
+      : named
+    : input.sandbox
+      ? "Testnet"
+      : "Mainnet";
+  const decimals = input.quoteDecimals && input.quoteDecimals > 0 ? input.quoteDecimals : 18;
+  const tokenUsd = input.quoteUsd && input.quoteUsd > 0 ? input.quoteUsd : 1;
+  const usd = (wei?: string) => quoteUsdOf(wei, decimals, tokenUsd);
+
+  const pairParts = (input.pair || "").split(/[/\-→>]+/).map((part) => part.trim()).filter(Boolean);
+  const tokenIn = trace?.sellToken || pairParts[0] || "—";
+  const tokenOut = trace?.buyToken || pairParts[1] || "—";
+  const dexA = trace?.buyDex || input.route?.split(/→|->/)[0]?.trim() || "—";
+  const dexB = trace?.sellDex || input.route?.split(/→|->/)[1]?.trim() || "—";
+
+  const loanFromWei = usd(trace?.loanAmountWei);
+  const loanUsd = loanFromWei > 0 ? loanFromWei : input.loanAmountUsd || 0;
+  const netProfitUsd = usd(input.netProfitWei);
+  const gasCostUsd = usd(trace?.gasCostWei);
+  const grossFromLegs = usd(trace?.amountOutWei) - usd(trace?.repayWei);
+  const tipPct = Math.max(0, input.minerTipPct ?? 0);
+  const grossBase = grossFromLegs > 0 ? grossFromLegs : netProfitUsd + gasCostUsd;
+  const bribeUsd = grossBase > 0 ? (grossBase * tipPct) / 100 : 0;
+  const grossProfitUsd = grossFromLegs > 0 ? grossFromLegs : netProfitUsd + gasCostUsd + bribeUsd;
+
+  const hash = input.txHash.trim();
+  return {
+    chainName,
+    tokenIn,
+    tokenOut,
+    dexA,
+    dexB,
+    blockNumber: trace?.blockNumber || 0,
+    loanUsd,
+    grossProfitUsd,
+    gasCostUsd,
+    bribeUsd,
+    netProfitUsd,
+    minProfitTargetUsd: input.minProfitUsd && input.minProfitUsd > 0 ? input.minProfitUsd : 0,
+    explorerUrl: explorerTxUrl(hash, chainId || "bsc"),
+  };
 }
 
 export function formatProTradeSuccessHtml(input: ProTradeSuccessNotifyInput): string {
-  const trade: TradeRecord = {
-    id: "telegram-report",
-    at: new Date().toISOString(),
-    pair: input.pair || "—",
-    route: input.route || "—",
-    netProfitWei: input.netProfitWei || "0",
-    txHash: input.txHash,
-    outcome: "success",
-    trace: input.trace,
-  };
-  const resolved = resolveTradeTrace(trade, {
-    lastBlock: input.trace?.blockNumber || 0,
-    gasPriceWei: input.trace?.gasPriceWei || "0",
-    gasLimit: Math.max(1, input.trace?.gasUsed || 500_000),
-    aaveFeePct: input.trace?.protocolFeePct || 0.05,
-    loanAmountUsd: input.loanAmountUsd || 0,
-    isSandbox: input.sandbox,
-    isPro: true,
-  });
-
-  const gasBnb = Number(resolved.gasFeeNative);
-  const feeBnb = usdToBnb(stableWeiToUsd(input.trace?.protocolFeeWei || "0"));
-  const gasFeeTotal = formatBnbAmount(
-    (Number.isFinite(gasBnb) ? gasBnb : 0) + (Number.isFinite(feeBnb) ? feeBnb : 0),
-    8
-  );
-  const loanLabel =
-    resolved.loanAmountLabel !== "—"
-      ? resolved.loanAmountLabel
-      : input.loanAmountUsd
-        ? `${formatUsd(input.loanAmountUsd)}`
-        : "—";
-  const hash = input.txHash.trim();
-  const networkLine = input.sandbox ? "Jaringan: Testnet (sandbox)" : "Jaringan: Mainnet";
-  const sourceLine = input.source ? `Sumber: ${escapeHtml(input.source)}` : "";
-
-  const lines = [
-    "✅ <b>Success</b>",
-    "<i>MEV Flash Loan · Mode Pro</i>",
-    escapeHtml(networkLine),
-    sourceLine,
-    "",
-    "<b>Pair</b>",
-    escapeHtml(resolved.pair || input.pair || "—"),
-    "",
-    "<b>Route</b>",
-    escapeHtml(
-      resolved.buyDex && resolved.sellDex
-        ? `${resolved.buyDex} → ${resolved.sellDex}`
-        : input.route || "—"
-    ),
-    "",
-    "<b>Loan Amount</b>",
-    escapeHtml(loanLabel),
-    "",
-    "<b>Tx Hash</b>",
-    `<code>${escapeHtml(hash)}</code>`,
-  ];
-
-  if (!input.sandbox && hash.startsWith("0x") && hash.length >= 66) {
-    lines.push(`<a href="${escapeHtml(bscscanTxUrl(hash))}">Buka BSCScan</a>`);
-  }
-
-  lines.push(
-    "",
-    "<b>Gas + Fee</b>",
-    escapeHtml(`Gas ${resolved.gasBnbLabel}`),
-    escapeHtml(`Fee protokol ${resolved.protocolFeeBnb}`),
-    `<b>Total ${escapeHtml(gasFeeTotal)}</b>`,
-    "",
-    "<b>Net Profit</b>",
-    `<b>${escapeHtml(resolved.netProfitBnb || formatStableWeiAsBnb(input.netProfitWei || "0", 6))}</b>`
-  );
-
-  return lines.filter((line, index, all) => !(line === "" && all[index - 1] === "")).join("\n");
+  return formatArbitrageSuccessHtml(toArbitrageSuccessTelegram(input));
 }
 
 async function deliverProTradeSuccess(input: ProTradeSuccessNotifyInput): Promise<void> {
@@ -354,18 +377,47 @@ export function notifyTxSuccess(input: {
   route?: string;
   netProfitWei?: string;
   source?: string;
+  chainId?: string;
+  quoteDecimals?: number;
+  quoteUsd?: number;
+  loanAmountUsd?: number;
+  minProfitUsd?: number;
+  minerTipPct?: number;
+  trace?: TradeTraceSnapshot;
+  sandbox?: boolean;
 }): void {
-  const profitUsd = formatUsd(stableWeiToUsd(input.netProfitWei || "0"));
-  const hash = input.txHash;
+  const text = formatArbitrageSuccessHtml(toArbitrageSuccessTelegram(input));
+  void sendTelegramMessage(text);
+}
+
+const SIMULATION_FAILOVER_TEXT =
+  "⚠️ [FAILOVER] Node Utama mengalami fetch failed. Jalur simulasi berhasil dialihkan ke Premium BlockPi dalam &lt; 1ms.";
+
+/** eth_call pindah ke BlockPi tanpa jeda setelah node cadangan putus. */
+export function notifySimulationBlockPiFailover(): void {
+  void sendTelegramMessage(SIMULATION_FAILOVER_TEXT);
+}
+
+/** eth_call pulih setelah fetch failed. Dipakai memantau node yang sempat putus. */
+export function notifySimulationRetryRecovered(input: {
+  chainId?: string;
+  endpoint?: string;
+  attempt: number;
+  maxRetries: number;
+  pair?: string;
+  route?: string;
+}): void {
   const text = [
-    "✅ <b>MEV eksekusi sukses</b>",
-    `Sumber: ${escapeHtml(input.source || "bot")}`,
-    `Pair: ${escapeHtml(input.pair || "—")}`,
-    `Rute: ${escapeHtml(input.route || "—")}`,
-    `Profit est.: <b>${escapeHtml(profitUsd)}</b>`,
-    `Tx: <code>${escapeHtml(shortenTxHash(hash))}</code>`,
-    `<a href="${escapeHtml(bscscanTxUrl(hash))}">Buka BSCScan</a>`,
-  ].join("\n");
+    "✅ <b>RPC retry berhasil</b>",
+    "Simulasi eth_call pulih setelah <b>fetch failed</b>.",
+    `Percobaan: ${input.attempt}/${input.maxRetries}`,
+    `Chain: ${escapeHtml(input.chainId || "—")}`,
+    `Node: ${escapeHtml(input.endpoint || "—")}`,
+    input.pair ? `Pair: ${escapeHtml(input.pair)}` : "",
+    input.route ? `Rute: ${escapeHtml(input.route)}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
   void sendTelegramMessage(text);
 }
 

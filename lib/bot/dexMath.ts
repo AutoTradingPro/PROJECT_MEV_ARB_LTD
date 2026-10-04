@@ -39,6 +39,12 @@ export function aaveFlashRepayAmount(borrowed: bigint, premiumBps: bigint): bigi
   return borrowed + premium;
 }
 
+/** Repay dari ppm registry. 10 ppm tetap 0.001% dan tidak dibulatkan jadi 0 bps. */
+export function flashRepayFromPpm(borrowed: bigint, feePpm: bigint): bigint {
+  if (borrowed <= 0n || feePpm < 0n) return 0n;
+  return borrowed + (borrowed * feePpm) / 1_000_000n;
+}
+
 export function applySlippage(amount: bigint, slippageBps: number): bigint {
   const bps = BigInt(Math.max(0, slippageBps));
   return (amount * (10_000n - bps)) / 10_000n;

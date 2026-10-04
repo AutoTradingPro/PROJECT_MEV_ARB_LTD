@@ -1,4 +1,4 @@
-import { resolveAdaptiveMinProfitUsd } from "@/lib/bot/adaptiveMinProfit";
+import { formatNetProfitSkip, resolveAdaptiveMinProfitUsd } from "@/lib/bot/adaptiveMinProfit";
 import { tokenWeiToUsd } from "@/lib/bot/configUnits";
 import { nativeUsdPrice } from "@/lib/bot/bnbQuote";
 import { DEX_ROUTES, flashLoanFeePctForProvider } from "@/lib/bot/dexRegistry";
@@ -8,6 +8,7 @@ import {
   resolveFlashLoanFeePct,
 } from "@/lib/bot/flashLoanProviders";
 import { nativeSymbolForChain } from "@/lib/bot/signerBalances";
+import { bestFlashloanForTradingChain, feePpmToPct } from "@/src/flashloan/globalProviderSelector";
 import { networkScanTag } from "@/lib/bot/autoExecute";
 import type { BotConfig, DexId, FlashLoanProviderId, Opportunity } from "@/lib/bot/types";
 import type { ChainId } from "@/lib/chain/networks";
@@ -74,6 +75,14 @@ function finite(value: number, fallback = 0): number {
   return Number.isFinite(value) ? value : fallback;
 }
 
+/** Tiga digit desimal. Nilai positif tidak boleh jatuh ke 0 karena pembulatan. */
+function usd3(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  const rounded = Math.round(value * 1000) / 1000;
+  if (value > 0 && rounded <= 0) return value;
+  return rounded;
+}
+
 function formatUsd(value: number, digits = 3): string {
   const n = finite(value);
   const abs = Math.abs(n);
@@ -132,11 +141,26 @@ function nativeGasAmount(gasPriceWei: bigint, gasLimit: bigint): number {
   return (Number(gasPriceWei) / 1e18) * Number(gasLimit);
 }
 
-function resolveFlashFee(config: Partial<BotConfig> | null | undefined, opp: Opportunity): {
+function resolveFlashFee(
+  config: Partial<BotConfig> | null | undefined,
+  opp: Pick<Partial<Opportunity>, "uniswapPoolFeePct" | "chainId" | "buyPoolFee" | "scanPoolFeePct">,
+  chainHint?: string
+): {
   providerId: FlashLoanProviderId | undefined;
   feePct: number;
   label: string;
 } {
+  const best = bestFlashloanForTradingChain(chainHint || opp.chainId || config?.chainId, {
+    poolFee: opp.buyPoolFee,
+    poolFeePct: opp.uniswapPoolFeePct ?? opp.scanPoolFeePct,
+  });
+  if (best) {
+    return {
+      providerId: undefined,
+      feePct: feePpmToPct(best.feePpm),
+      label: best.name,
+    };
+  }
   const provider = config?.flashLoanProvider;
   if (config?.flashLoanPlatforms && provider) {
     const resolved = resolveFlashLoanFeePct(config.flashLoanPlatforms, provider, {
@@ -178,7 +202,7 @@ export function computeSkipProfitBreakdown(input: SkipProfitBreakdownInput): Ski
       : finite(Number(config?.loanAmountUsd), 0) > 0
         ? Number(config?.loanAmountUsd)
         : 0;
-  const spreadBps = finite(opp.spreadBps);
+  const spreadBps = finite(opp.spreadBps ?? 0);
   const spreadPct = spreadBps / 100;
   const grossUsd = loanUsd * (spreadBps / 10_000);
   const buyFeePct = dexSwapFeePct(opp.buyDex, opp.buyPoolFee, opp.scanPoolFeePct);
@@ -187,7 +211,7 @@ export function computeSkipProfitBreakdown(input: SkipProfitBreakdownInput): Ski
   const sellNotional = Math.max(0, loanUsd - buyFeeUsd + grossUsd);
   const sellFeeUsd = sellNotional * (sellFeePct / 100);
   const swapFeeUsd = buyFeeUsd + sellFeeUsd;
-  const flash = resolveFlashFee(config, opp);
+  const flash = resolveFlashFee(config, opp, input.chainId);
   const premiumUsd = loanUsd * (flash.feePct / 100);
 
   const chainId = (input.chainId || opp.chainId || config?.chainId || "ethereum") as ChainId;
@@ -207,8 +231,9 @@ export function computeSkipProfitBreakdown(input: SkipProfitBreakdownInput): Ski
 
   const minerTipPct = finite(Number(config?.dynamicBribePercent ?? config?.minerTipPct));
   const minerTipUsd = Math.max(0, grossUsd) * (minerTipPct / 100);
-  const netUsd = grossUsd - swapFeeUsd - premiumUsd - gasUsd - minerTipUsd;
-  const engineNetUsd = tokenWeiToUsd(opp.netProfitWei || "0", decimals, quoteUsd);
+  const netUsd = usd3(grossUsd - swapFeeUsd - premiumUsd - gasUsd - minerTipUsd);
+  const engineFromWei = usd3(tokenWeiToUsd(opp.netProfitWei || "0", decimals, quoteUsd));
+  const engineNetUsd = netUsd > 0 && engineFromWei <= 0 ? netUsd : engineFromWei;
   const adaptiveFloor = resolveAdaptiveMinProfitUsd({
     loanAmountUsd: loanUsd,
     gasCostUsd: gasUsd,
@@ -216,7 +241,7 @@ export function computeSkipProfitBreakdown(input: SkipProfitBreakdownInput): Ski
     spreadBps,
   });
   const floorUsd = adaptiveFloor.minProfitUsd;
-  const decisionNetUsd = engineNetUsd;
+  const decisionNetUsd = netUsd > 0 ? netUsd : engineNetUsd;
   const deficitUsd = Math.max(0, floorUsd - decisionNetUsd);
 
   return {
@@ -263,7 +288,7 @@ export function skipProfitTelegramDedupeKey(input: SkipProfitBreakdownInput): st
   return `${phase}:${chain}:${math.pair}:${math.buyDex}->${math.sellDex}`;
 }
 
-/** Pesan HTML Telegram: jaringan/rute, spread+loan, biaya, net vs lantai max(loan×0.60%,costFloor). */
+/** Pesan HTML Telegram: jaringan/rute, spread+loan, biaya, net vs target loan×0.10%. */
 export function formatSkipProfitTelegramHtml(input: SkipProfitBreakdownInput): string {
   const math = computeSkipProfitBreakdown(input);
   const network = networkScanTag(input.chainId || input.config?.chainId, false);
@@ -274,6 +299,9 @@ export function formatSkipProfitTelegramHtml(input: SkipProfitBreakdownInput): s
       ? `Defisit: <b>${escapeHtml(formatUsd(math.deficitUsd))}</b>`
       : `Surplus vs lantai: ${escapeHtml(formatUsd(math.decisionNetUsd - math.floorUsd))}`;
   const headline = (input.headline || "").replace(/\s+/g, " ").trim().slice(0, 280);
+  const reason = /minProfitUsd|loan×0\.|Net profit di bawah/i.test(headline)
+    ? formatNetProfitSkip(math.decisionNetUsd, math.floorUsd)
+    : headline;
   return [
     `${title}`,
     `<i>MEV Flash Loan · ${escapeHtml(network)}</i>`,
@@ -294,12 +322,12 @@ export function formatSkipProfitTelegramHtml(input: SkipProfitBreakdownInput): s
     `Premi flash: <b>${escapeHtml(formatUsd(math.premiumUsd))}</b> (${escapeHtml(math.flashProvider)} ${escapeHtml(formatPct(math.flashFeePct, 2))})`,
     `Gas estimasi: <b>${escapeHtml(`${finite(math.gasNative).toFixed(6)} ${math.nativeSymbol}`)}</b> (~${escapeHtml(formatUsd(math.gasUsd))})`,
     "",
-    "<b>4. Net vs lantai (max loan×0.60% / costFloor)</b>",
+    "<b>4. Net vs target (loan×0.10%)</b>",
     `Net model: ${escapeHtml(formatUsd(math.netUsd))}`,
     `Net engine: ${escapeHtml(formatUsd(math.engineNetUsd))}`,
     `Lantai minimum: <b>${escapeHtml(formatUsd(math.floorUsd))}</b>`,
     vsFloor,
-    headline ? `\n<b>Alasan</b>\n${escapeHtml(headline)}` : "",
+    reason ? `\n<b>Alasan</b>\n${escapeHtml(reason)}` : "",
   ]
     .filter((line, index, all) => !(line === "" && all[index - 1] === ""))
     .join("\n");
@@ -313,7 +341,7 @@ function inferDecisionStatus(input: SkipProfitBreakdownInput): FinancialDecision
   if (/execution reverted|Tx Hash|REVERT/i.test(text) && input.phase === "fail") {
     return "REVERT_ONCHAIN";
   }
-  if (/Net profit di bawah lantai|Profit terlalu kecil|SKIP.*lantai|loan×0\.60%|minProfitUsd/i.test(text)) {
+  if (/Net profit di bawah|Profit terlalu kecil|SKIP.*target|loan×0\.10%|minProfitUsd/i.test(text)) {
     return "SKIP_PROFIT_RENDAH";
   }
   if (input.phase === "skip") return "SKIP_LAIN";
@@ -341,21 +369,17 @@ export function formatFinancialBreakdownLines(input: SkipProfitBreakdownInput): 
   const math = computeSkipProfitBreakdown(input);
   const status = inferDecisionStatus(input);
   const spreadSign = math.spreadPct >= 0 ? "+" : "";
-  const netForDecision =
-    Math.abs(math.engineNetUsd) > 1e-12 ? math.engineNetUsd : math.netUsd;
+  const netForDecision = math.decisionNetUsd;
   const vsFloor =
     netForDecision + 1e-12 >= math.floorUsd
       ? `surplus ${formatUsd(netForDecision - math.floorUsd)}`
       : `defisit ${formatUsd(math.floorUsd - netForDecision)}`;
   const detail =
-    (input.detailReason || input.headline || "")
-      .replace(/\s+/g, " ")
-      .trim() ||
-    (status === "DISEKUSI"
-      ? `Net estimasi ${formatUsd(netForDecision)} memenuhi lantai ${formatUsd(math.floorUsd)} (${vsFloor}).`
-      : status === "SKIP_PROFIT_RENDAH"
-        ? `Net ${formatUsd(netForDecision)} < lantai minProfitUsd ${formatUsd(math.floorUsd)} (${vsFloor}).`
-        : "—");
+    status === "SKIP_PROFIT_RENDAH"
+      ? formatNetProfitSkip(netForDecision, math.floorUsd)
+      : status === "DISEKUSI"
+        ? `Net estimasi ${formatUsd(netForDecision)} memenuhi lantai ${formatUsd(math.floorUsd)} (${vsFloor}).`
+        : (input.detailReason || input.headline || "").replace(/\s+/g, " ").trim() || "—";
 
   const lines = [
     "[FINANCIAL BREAKDOWN]",

@@ -11,7 +11,51 @@ import { formatEstimatedTxGasFromPrice } from "@/lib/bot/gasCostEstimate";
 import { parseBlockNumber } from "@/lib/chain/publicEnv";
 import { formatBps } from "@/lib/bot/dexMath";
 import { normalizeTradingChainId } from "@/config/networks";
+import { FANTOM_EXECUTOR_SKIP_REASON } from "@/src/flashloan/globalProviderSelector";
+import { appendServerLog } from "@/lib/bot/serverLog";
+import { publishQueuedScanRoutes } from "@/lib/bot/queueFeedBridge";
 import type { BotConfig, Opportunity } from "@/lib/bot/types";
+
+/* ============================================================
+ * CIRCUIT BREAKER
+ * Optimism dan Avalanche (Aave V3, kind 3) serta Base (Uniswap V3
+ * flash, kind 4) sudah dihapus dari hold. Executor barunya on-chain.
+ * Hanya Fantom yang tersisa: executor belum di-deploy.
+ * Untuk membuka Fantom nanti, hapus baris `fantom` di bawah.
+ * ============================================================ */
+const MEV_EXECUTOR_REDEPLOY_HOLD: Record<string, string> = {
+  fantom: `[SKIP] ${FANTOM_EXECUTOR_SKIP_REASON}`,
+};
+
+const redeployHoldLoggedAt = new Map<string, number>();
+
+/** Alasan skip, atau null jika chain boleh masuk profit, gas, dan dryRun. */
+export function mevExecutorRedeployHoldReason(chainId: string | null | undefined): string | null {
+  const key = String(chainId ?? "").trim().toLowerCase();
+  return MEV_EXECUTOR_REDEPLOY_HOLD[key] ?? null;
+}
+
+/** Tulis alasan yang sama ke stdout dan CONSOLE_LOG. Telegram dikirim pemanggil. */
+export function noteMevExecutorRedeployHold(chainId: string | null | undefined): string | null {
+  const reason = mevExecutorRedeployHoldReason(chainId);
+  if (!reason) return null;
+  const key = String(chainId ?? "").trim().toLowerCase();
+  const now = Date.now();
+  if (now - (redeployHoldLoggedAt.get(key) ?? 0) >= AUTO_EXECUTE.skipTelegramMs) {
+    redeployHoldLoggedAt.set(key, now);
+    console.log(reason);
+    if (typeof window === "undefined") {
+      appendServerLog({
+        level: "warn",
+        source: "SKIPPED",
+        chainId: key,
+        message: reason,
+      });
+    }
+  }
+  return reason;
+}
+/* CIRCUIT BREAKER END */
 
 export function gasPriceToGwei(gasPriceWei: string | undefined): number {
   try {
@@ -271,7 +315,7 @@ export function noteAutoSpreadWaitPeak(spreadBps: number, channel = "mainnet"): 
 }
 
 export function takeAutoSpreadWaitPeakIfDue(
-  intervalMs = AUTO_EXECUTE.spreadWaitLogMs,
+  intervalMs: number = AUTO_EXECUTE.spreadWaitLogMs,
   now = Date.now(),
   channel = "mainnet"
 ): number | null {
@@ -598,18 +642,21 @@ export function opportunityMeetsNetProfitFloor(
 ): boolean {
   if (sandbox) return true;
   const netUsd = opportunityUsdValue(opp.netProfitWei || "0", opp);
-  if (!(netUsd > 0)) return false;
-  const gasCostUsd = opportunityUsdValue(opp.gasCostWei || "0", opp);
-  const bribePct = config.dynamicBribePercent ?? config.minerTipPct;
+  const loanAmountUsd = opportunityUsdValue(opp.amountInWei, opp);
+  if (!(loanAmountUsd > 0)) return false;
+  const bribePct = Number(config.dynamicBribePercent ?? config.minerTipPct);
+  const bribeUsd = Number(opp.bribeUsd);
   const { minProfitUsd } = resolveAdaptiveMinProfitUsd({
-    loanAmountUsd: config.loanAmountUsd,
     configMinProfitUsd: config.minProfitUsd,
-    gasCostUsd,
-    bribePct,
+    gasCostUsd: opportunityUsdValue(opp.gasCostWei || "0", opp),
+    bribeUsd: Number.isFinite(bribeUsd) ? bribeUsd : 0,
+    bribePct: Number.isFinite(bribePct) ? bribePct : 0,
     spreadBps: opp.spreadBps,
-    minSpreadBps: minSpreadBpsFromConfig(config, sandbox),
+    minSpreadBps: minSpreadBpsFromConfig(config),
+    extreme: config.gasStrategyMode === "extreme",
+    loanAmountUsd,
   });
-  return !(minProfitUsd > 0 && netUsd + 1e-9 < minProfitUsd);
+  return netUsd + 1e-9 >= minProfitUsd;
 }
 
 export function formatQueueRouteLabel(opp: Opportunity): string {
@@ -617,6 +664,28 @@ export function formatQueueRouteLabel(opp: Opportunity): string {
     opp.dexAName || opp.buyExchange || dexLabel(opp.buyDex),
     opp.dexBName || opp.sellExchange || dexLabel(opp.sellDex)
   )} ${formatSpreadPct(opp.spreadBps || 0)}`;
+}
+
+const lastQueueFilterLogAt = new Map<string, number>();
+
+function logSpreadFilteredRoute(opp: Opportunity, config: BotConfig): void {
+  if (typeof window !== "undefined") return;
+  const pair = opp.tokenPair || opp.id || "—";
+  const buy = opp.dexAName || opp.buyExchange || opp.buyDex || "DEX";
+  const sell = opp.dexBName || opp.sellExchange || opp.sellDex || "DEX";
+  const gate = formatPct(config.minSpreadPct);
+  const message = `[QUEUE_FILTER] Rute ${pair} ${buy} → ${sell} dikeluarkan dari antrean (Spread di bawah ${gate} config).`;
+  const key = `${opp.chainId || ""}:${opp.id}:${gate}`;
+  const now = Date.now();
+  if (now - (lastQueueFilterLogAt.get(key) ?? 0) < AUTO_EXECUTE.signalSkipLogMs) return;
+  lastQueueFilterLogAt.set(key, now);
+  console.log(message);
+  appendServerLog({
+    level: "info",
+    source: "QUEUE_FILTER",
+    chainId: opp.chainId,
+    message,
+  });
 }
 
 /** Semua rute dengan spread ≥ min, urut tertinggi → terendah (bukan hanya Top-1). */
@@ -628,9 +697,13 @@ export function rankAutoExecuteQueue(
   const sandbox = Boolean(opts?.sandbox);
   const minSpreadBps = minSpreadBpsFromConfig(config, sandbox);
   const solana = config.chainId === "solana";
+  if (!sandbox) publishQueuedScanRoutes(opportunities);
   return [...opportunities]
     .filter((opp) => {
-      if (!spreadMeetsMinimum(opp.spreadBps, minSpreadBps)) return false;
+      if (!spreadMeetsMinimum(opp.spreadBps, minSpreadBps)) {
+        logSpreadFilteredRoute(opp, config);
+        return false;
+      }
       // Solana: hanya antrikan yang status ready (deep net sudah lolos lantai).
       if (solana && opp.status !== "ready") return false;
       return true;

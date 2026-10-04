@@ -33,7 +33,7 @@ export function balancerArbFromEnv(): string {
 /** Fee Uniswap V3 default (0.05%) jika scan tidak mengisi uint24. */
 const DEFAULT_UNI_V3_FEE = 500;
 
-function resolveUniV3PoolFee(fee: number | undefined, feePct?: number): number {
+export function resolveUniV3PoolFee(fee: number | undefined, feePct?: number): number {
   if (typeof fee === "number" && Number.isFinite(fee) && fee > 0) return Math.round(fee);
   if (typeof feePct === "number" && Number.isFinite(feePct) && feePct > 0) {
     return Math.max(1, Math.round(feePct * 10_000));

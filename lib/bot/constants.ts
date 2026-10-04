@@ -1,4 +1,3 @@
-import { proportionalMinProfitAnchorUsd } from "./adaptiveMinProfit";
 import type { BotConfig } from "./types";
 import { defaultFlashLoanPlatforms } from "./flashLoanProviders";
 import { defaultDexIdsForChain, FLASH_LOAN_FEE_PCT } from "./dexRegistry";
@@ -9,6 +8,7 @@ import {
   ETHEREUM_BALANCER_FLASH_ARB,
   defaultTradingChainId,
 } from "@/config/networks";
+import { evmExecutorActivation, resolveEvmExecutorAddress, resolveEvmFlashPool } from "@/lib/bot/executorActivation";
 
 export {
   DEX_ROUTES,
@@ -80,7 +80,7 @@ export const AUTO_EXECUTE = {
   haltAfterFailsMs: 45_000,
   /** 0 = tanpa plafon gwei; gas mengikuti harga live jaringan. */
   maxGasGwei: 0,
-  /** 0 = tanpa plafon USD; filter profit loan×0.60% / costFloor yang menahan. */
+  /** 0 = tanpa plafon USD; filter profit loan×0.10% yang menahan. */
   maxGasCostUsd: 0,
   /** Testnet Pro: jeda antar eksekusi simulasi (scan tetap SCAN_INTERVAL_MS). */
   sandboxCooldownMs: 6_000,
@@ -118,14 +118,14 @@ export const DEFAULT_GAS_STRATEGY = {
 export const MIN_POOL_LIQUIDITY_USD = 100_000;
 
 export const DEFAULT_BOT_CONFIG: BotConfig = {
-  minProfitUsd: proportionalMinProfitAnchorUsd(10_000),
+  minProfitUsd: 0,
   minerTipPct: 0.5,
   dynamicBribePercent: 0.5,
   minSpreadPct: 0.5,
   maxSpotSpreadPct: 5,
   gasLimit: 650_000,
   activeDexIds: defaultDexIdsForChain(defaultTradingChainId()),
-  loanAmountUsd: 10_000,
+  loanAmountUsd: 0,
   flashLoanProvider: FLASH_LOAN_PROVIDER,
   aaveFeePct: AAVE_FLASH_FEE_PCT.free,
   flashLoanPlatforms: defaultFlashLoanPlatforms(),
@@ -197,12 +197,8 @@ export function contractAddressFromEnv(chainId?: string): string {
       ) || ETHEREUM_BALANCER_FLASH_ARB
     );
   }
-  if (chain === "polygon") {
-    return firstUsableEnv(
-      "NEXT_PUBLIC_POLYGON_ARBITRAGE_EXECUTOR",
-      "POLYGON_BALANCER_FLASH_ARB",
-      "BALANCER_FLASH_ARB_POLYGON"
-    );
+  if (evmExecutorActivation(chain)) {
+    return resolveEvmExecutorAddress(chain);
   }
   return firstEnv(
     "NEXT_PUBLIC_BSC_ARBITRAGE_EXECUTOR",
@@ -227,6 +223,10 @@ export function flashLoanPoolFromEnv(chainId?: string): string {
   }
   if (chain === "polygon") {
     return firstEnv("POLYGON_FLASH_LOAN_POOL", "POLYGON_BALANCER_VAULT") || BALANCER_V2_VAULT;
+  }
+  const activated = evmExecutorActivation(chain);
+  if (activated && chain !== "bsc") {
+    return resolveEvmFlashPool(chain);
   }
   return firstEnv(
     "NEXT_PUBLIC_BSC_FLASH_LOAN_POOL",

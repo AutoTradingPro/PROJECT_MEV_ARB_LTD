@@ -11,6 +11,7 @@ import {
   Shield,
   Wallet,
 } from "lucide-react";
+import MevVaultPanel from "@/components/vault/MevVaultPanel";
 import TxNotifyToast, { type TxNotify } from "@/components/TxNotifyToast";
 import { useBotConfig } from "@/context/BotConfigContext";
 import { useNetwork } from "@/context/NetworkContext";
@@ -42,7 +43,6 @@ import {
   isNativeAsset,
   maxWithdrawInputFromBalances,
   rawVaultError,
-  tokenAddressForAsset,
   withdrawFromVault,
   type VaultAsset,
   type VaultBalances,
@@ -57,7 +57,6 @@ import {
   getConnectedAccounts,
   getWalletChainIdHex,
   parseChainIdHex,
-  shortenAddress,
 } from "@/lib/wallet/provider";
 import GasStrategyPanel from "@/components/admin/GasStrategyPanel";
 import TelegramTestPanel from "@/components/admin/TelegramTestPanel";
@@ -451,6 +450,7 @@ export default function AdminView({ embedded = false }: AdminViewProps) {
           Refresh
         </button>
       </div>
+      {balanceError ? <p className="text-xs text-red-400">{balanceError}</p> : null}
 
       <FlashLoanProviderCard config={config} onChange={setConfig} />
 
@@ -501,57 +501,7 @@ export default function AdminView({ embedded = false }: AdminViewProps) {
         )}
       </section>
 
-      <section className="theme-panel rounded-2xl p-5 space-y-4">
-        <h2 className="text-sm font-bold uppercase tracking-wide">Saldo kontrak executor</h2>
-        {vaultAddress ? (
-          <p className="font-mono text-[11px] text-slate-500 break-all">
-            Executor: {vaultAddress}
-            {executor ? ` · ${executor.label} · native ${executor.nativeSymbol}` : ""}
-          </p>
-        ) : (
-          <p className="text-sm text-amber-300">
-            {activeEvmId === ARBITRUM_EVM_CHAIN_ID
-              ? "Executor Arbitrum belum diisi. Ganti ARBITRUM_EXECUTOR_ADDRESS di lib/vault/executors.ts atau NEXT_PUBLIC_ARBITRUM_ARBITRAGE_EXECUTOR (jangan pakai alamat BSC)."
-              : walletChainId != null && !supportedWalletChain
-                ? `Chain ID ${walletChainId} tidak didukung. Ganti MetaMask ke BSC (56) atau Arbitrum (42161).`
-                : "Alamat kontrak executor belum diisi."}
-          </p>
-        )}
-        {balanceError && (
-          <p className="flex items-center gap-2 text-xs text-red-400">
-            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-            {balanceError}
-          </p>
-        )}
-        <div className={`grid gap-3 ${trading === "arbitrum" ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
-          <div className="rounded-xl border border-amber-500/20 bg-black/40 px-4 py-4">
-            <p className="text-[10px] uppercase tracking-wide text-slate-500">{nativeSymbol}</p>
-            <p className="mt-1 font-mono text-lg font-bold tabular-nums text-amber-300">
-              {balances ? balances.nativeLabel : loadingBalances ? "…" : "—"}
-            </p>
-          </div>
-          <div className="rounded-xl border border-emerald-500/20 bg-black/40 px-4 py-4">
-            <p className="text-[10px] uppercase tracking-wide text-slate-500">USDT</p>
-            <p className="mt-1 font-mono text-lg font-bold tabular-nums text-emerald-400">
-              {balances ? balances.usdtLabel : loadingBalances ? "…" : "—"}
-            </p>
-            <p className="mt-1 font-mono text-[10px] text-slate-600 break-all">
-              {shortenAddress(tokenAddressForAsset(trading, "usdt"))}
-            </p>
-          </div>
-          {trading === "arbitrum" ? (
-            <div className="rounded-xl border border-sky-500/20 bg-black/40 px-4 py-4">
-              <p className="text-[10px] uppercase tracking-wide text-slate-500">USDC</p>
-              <p className="mt-1 font-mono text-lg font-bold tabular-nums text-sky-300">
-                {balances ? balances.usdcLabel : loadingBalances ? "…" : "—"}
-              </p>
-              <p className="mt-1 font-mono text-[10px] text-slate-600 break-all">
-                {shortenAddress(tokenAddressForAsset(trading, "usdc"))}
-              </p>
-            </div>
-          ) : null}
-        </div>
-      </section>
+      <MevVaultPanel />
 
       <section className="theme-panel rounded-2xl p-5 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -632,20 +582,15 @@ export default function AdminView({ embedded = false }: AdminViewProps) {
           </h2>
           <div className="mt-4 flex min-h-0 flex-1 flex-col gap-4">
           <label className="block space-y-1.5">
-            <span className="text-[10px] uppercase tracking-wide text-slate-500">Aset</span>
-            <select
-              value={asset}
-              onChange={(e) => setAsset(e.target.value as VaultAsset)}
-              className="theme-input w-full rounded-lg px-3 py-2 text-sm"
-            >
-              <option value="native">{nativeSymbol}</option>
-              <option value="usdt">USDT</option>
-              {trading === "arbitrum" ? <option value="usdc">USDC</option> : null}
-            </select>
+            <span className="text-[10px] uppercase tracking-wide text-slate-500">Token</span>
+            <p className="theme-input w-full rounded-lg px-3 py-2 font-mono text-sm">USDC</p>
+            <p className="break-all font-mono text-[10px] text-slate-500">
+              Arbitrum One · 0xaf88d065e77c8cC2239327C5EDb3A432268e5831
+            </p>
           </label>
           <label className="block space-y-1.5">
             <span className="text-[10px] uppercase tracking-wide text-slate-500">
-              Deposit Vault · {symbol} (otomatis)
+              Nominal USDC
             </span>
             <input
               type="text"
@@ -658,19 +603,17 @@ export default function AdminView({ embedded = false }: AdminViewProps) {
             />
           </label>
           <p className="min-h-[2.75rem] text-[11px] leading-relaxed text-slate-500">
-            {nativeSymbol} memanggil <span className="font-mono text-slate-300">deposit()</span> (fallback: transfer
-            native). Token memanggil <span className="font-mono text-slate-300">depositToken</span> setelah approve.
+            Deposit USDC ditandatangani di panel MevVault di atas, ke kontrak vault Arbitrum One. Form executor lama
+            tidak mengirim token lain.
           </p>
           <div className="mt-auto">
             <div className="mb-1 flex h-5 justify-end" aria-hidden="true" />
             <button
               type="button"
-              disabled={pending !== null}
-              onClick={() => void runDeposit()}
+              disabled
               className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-bold text-slate-950 hover:bg-emerald-400 cursor-pointer disabled:opacity-40"
             >
-              {pending === "deposit" ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
-              {pending === "deposit" ? "Mengirim deposit…" : `Deposit ${symbol}`}
+              Deposit USDC · panel MevVault
             </button>
           </div>
           </div>
@@ -683,20 +626,15 @@ export default function AdminView({ embedded = false }: AdminViewProps) {
           </h2>
           <div className="mt-4 flex min-h-0 flex-1 flex-col gap-4">
           <label className="block space-y-1.5">
-            <span className="text-[10px] uppercase tracking-wide text-slate-500">Aset</span>
-            <select
-              value={asset}
-              onChange={(e) => setAsset(e.target.value as VaultAsset)}
-              className="theme-input w-full rounded-lg px-3 py-2 text-sm"
-            >
-              <option value="native">{nativeSymbol}</option>
-              <option value="usdt">USDT</option>
-              {trading === "arbitrum" ? <option value="usdc">USDC</option> : null}
-            </select>
+            <span className="text-[10px] uppercase tracking-wide text-slate-500">Token</span>
+            <p className="theme-input w-full rounded-lg px-3 py-2 font-mono text-sm">USDC</p>
+            <p className="break-all font-mono text-[10px] text-slate-500">
+              Arbitrum One · 0xaf88d065e77c8cC2239327C5EDb3A432268e5831
+            </p>
           </label>
           <label className="block space-y-1.5">
             <span className="flex items-center justify-between gap-2 text-[10px] uppercase tracking-wide text-slate-500">
-              <span>Nominal {symbol}</span>
+              <span>Nominal USDC</span>
               <span className="font-mono font-medium normal-case tracking-normal text-slate-400">
                 {selectedBalance.label}
               </span>
@@ -711,8 +649,8 @@ export default function AdminView({ embedded = false }: AdminViewProps) {
             />
           </label>
           <p className="min-h-[2.75rem] text-[11px] leading-relaxed text-slate-500">
-            Tarik dana ke wallet owner yang terhubung (`withdraw` / `withdrawToken`, `onlyOwner`). Kosongkan
-            nominal untuk sapu sisa lewat `emergencyWithdraw` / `rescueETH`.
+            Withdraw USDC kembali ke dompet pemilik lewat panel MevVault di atas. Saldo yang dihitung adalah aset
+            kontrak MevVault, bukan token lain di executor lama.
           </p>
           <div className="mt-auto">
             <div className="mb-1 flex h-5 items-center justify-end">
@@ -729,16 +667,10 @@ export default function AdminView({ embedded = false }: AdminViewProps) {
             <button
               id="admin-withdraw-button"
               type="button"
-              disabled={pending !== null || (selectedBalance.known && selectedBalance.zero)}
-              onClick={() => void runWithdraw()}
+              disabled
               className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-amber-400 px-4 py-2.5 text-sm font-bold text-slate-950 hover:bg-amber-300 cursor-pointer disabled:opacity-40"
             >
-              {pending === "withdraw" ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
-              {pending === "withdraw"
-                ? "Menunggu tanda tangan…"
-                : selectedBalance.known && selectedBalance.zero
-                  ? `Saldo ${symbol} kosong`
-                  : `Withdraw ${symbol}`}
+              Withdraw USDC · panel MevVault
             </button>
           </div>
           </div>

@@ -1,3 +1,4 @@
+import { cookieStorage, createStorage, http } from "@wagmi/core";
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
 import {
   arbitrum,
@@ -11,7 +12,6 @@ import {
   polygon,
   type AppKitNetwork,
 } from "@reown/appkit/networks";
-import { cookieStorage, createStorage, http } from "wagmi";
 
 export const appKitProjectId = (
   process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ||

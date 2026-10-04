@@ -7,6 +7,7 @@ import { defaultDexIdsForChain, resolveScanDexIds } from "./dexRegistry";
 import { resolveDynamicBribePercent } from "./dynamicBribe";
 import { activeFlashLoanProviderId, mergeFlashLoanPlatforms, normalizeFlashLoanProviderId } from "./flashLoanProviders";
 import { clampMaxPriceImpactPct, clampMaxSpotSpreadPct, clampMinPoolLiquidityUsd } from "./poolSafety";
+import { bestFlashloanForTradingChain, feePpmToBps } from "@/src/flashloan/globalProviderSelector";
 
 /** USDT/USDC on BSC menggunakan 18 desimal. USDC Arbitrum memakai 6. */
 const STABLE_DECIMALS = 18;
@@ -50,10 +51,15 @@ export function tokenWeiToUsd(
   tokenUsd = 1
 ): number {
   try {
-    const value = typeof wei === "bigint" ? wei : BigInt(wei || "0");
-    const tokens = Number(value) / 10 ** clampDecimals(decimals);
+    const raw = typeof wei === "bigint" ? wei.toString() : String(wei || "0").trim();
+    const whole = raw.split(".")[0] || "0";
+    const value = BigInt(whole);
+    if (value <= 0n) return 0;
     const px = Number.isFinite(tokenUsd) && tokenUsd > 0 ? tokenUsd : 1;
-    const usd = tokens * px;
+    const priceMicro = BigInt(Math.round(px * 1_000_000));
+    const scale = 10n ** BigInt(clampDecimals(decimals));
+    const microUsd = (value * priceMicro) / scale;
+    const usd = Number(microUsd) / 1_000_000;
     return Number.isFinite(usd) ? usd : 0;
   } catch {
     return 0;
@@ -75,18 +81,23 @@ export interface EngineConfig {
   gasLimit: number;
   activeDexIds: BotConfig["activeDexIds"];
   aaveFeeBps: number;
+  /** Premi flash dari registry, dalam ppm (900 = 0.09%). */
+  flashFeePpm: number;
 }
 
 export function toEngineConfig(config: BotConfig): EngineConfig {
   const bribe = resolveDynamicBribePercent(config);
   const minProfitUsd = proportionalMinProfitAnchorUsd(config.loanAmountUsd);
+  const bestFlash = bestFlashloanForTradingChain(config.chainId);
   return {
     minProfitWei: usdToStableWei(minProfitUsd),
     minerTipBps: pctToBps(bribe),
     minSpreadBps: pctToBps(config.minSpreadPct),
     gasLimit: config.gasLimit,
     activeDexIds: config.activeDexIds,
-    aaveFeeBps: pctToBps(config.aaveFeePct),
+    // Premi pelunasan flashloan = fee penyedia termurah di registry, bukan pilihan manual UI.
+    aaveFeeBps: bestFlash ? feePpmToBps(bestFlash.feePpm) : pctToBps(config.aaveFeePct),
+    flashFeePpm: bestFlash ? bestFlash.feePpm : Math.round(config.aaveFeePct * 10_000),
   };
 }
 
@@ -99,7 +110,7 @@ export function migrateBotConfig(raw: Partial<BotConfig & LegacyBotConfig>): Bot
     maxSpotSpreadPct: 5,
     gasLimit: 650_000,
     activeDexIds: defaultDexIdsForChain(defaultTradingChainId()) as BotConfig["activeDexIds"],
-    loanAmountUsd: 10_000,
+    loanAmountUsd: 0,
     flashLoanProvider: defaultTradingChainId() === "bsc" ? ("uniswap" as const) : ("balancer" as const),
     aaveFeePct: 0.09,
     gasStrategyMode: DEFAULT_GAS_STRATEGY.mode,

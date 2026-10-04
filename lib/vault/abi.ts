@@ -1,15 +1,22 @@
-/** ABI vault/executor — sinkron dengan `contracts/FlashArbTreasury.sol`. */
+/**
+ * ABI vault/executor — sinkron dengan `contracts/FlashArbTreasury.sol`, ditambah permukaan executor
+ * BSC lama (`withdrawBNB()`, `withdrawToken(address)`, error Ownable). `withdrawToken` di-overload:
+ * encode selalu dengan signature lengkap.
+ */
 export const VAULT_ABI = [
   "function owner() view returns (address)",
   "function deposit() payable",
   "function depositToken(address token, uint256 amount)",
   "function withdraw(uint256 amount)",
   "function withdrawToken(address token, uint256 amount)",
+  "function withdrawToken(address token)",
+  "function withdrawBNB()",
   "function emergencyWithdraw(address token, address to)",
   "function rescueFunds(address tokenAddress)",
   "function rescueFunds(address token, uint256 amount)",
   "function rescueETH()",
   "function DEPLOYER() view returns (address)",
+  "error OwnableUnauthorizedAccount(address account)",
   "error NotOwner()",
   "error NativeTransferFailed()",
   "error InvalidCallback()",

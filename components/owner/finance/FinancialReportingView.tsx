@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Download, Printer, ShieldCheck } from "lucide-react";
-import FinanceLinesTable from "@/components/owner/finance/FinanceLinesTable";
+import FinanceLinesTable, { CashLedgerTable } from "@/components/owner/finance/FinanceLinesTable";
 import { fetchFinancialReport } from "@/lib/finance/client";
 import { downloadCsv, financialReportToCsv } from "@/lib/finance/export";
 import { formatFinanceAmount } from "@/lib/finance/format";
@@ -358,60 +358,18 @@ export default function FinancialReportingView() {
                   </p>
                 </div>
               ) : null}
-              <FinanceLinesTable
-                title="Kas (Pemasukan)"
-                lines={report.cashbook.inflows.map((line) => ({
-                  code: line.code,
-                  label: line.label,
-                  amountUsd: line.amountIdr,
-                  note: line.note || "Setoran kas / modal",
-                }))}
-                footer={{ label: "Total Kas Masuk", amountUsd: report.cashbook.totalInflowIdr }}
+              <CashLedgerTable
+                title="Arus Kas Utama"
+                lines={[
+                  ...report.cashbook.inflows,
+                  ...report.cashbook.mutasiLines,
+                  ...report.cashbook.outflows.filter((line) => line.code.startsWith("KB-")),
+                ]}
               />
-              <FinanceLinesTable
-                title="Pengeluaran (Mutasi & Nota)"
-                lines={report.cashbook.mutasiLines.map((line) => ({
-                  code: line.code,
-                  label: line.label,
-                  amountUsd: -line.amountIdr,
-                  note: line.note || "Pengeluaran",
-                }))}
-                footer={{
-                  label: "Subtotal Mutasi & Nota",
-                  amountUsd: -report.cashbook.mutasiLines.reduce((sum, line) => sum + line.amountIdr, 0),
-                }}
+              <CashLedgerTable
+                title="Pengeluaran Harian"
+                lines={[...report.cashbook.dailyOpexLines, ...report.cashbook.periodicOpexLines]}
               />
-              <FinanceLinesTable
-                title="Opex Harian"
-                lines={report.cashbook.dailyOpexLines.map((line) => ({
-                  code: line.code,
-                  label: line.label,
-                  amountUsd: -line.amountIdr,
-                  note: line.note || "Opex harian",
-                }))}
-                footer={{
-                  label: "Subtotal Opex Harian",
-                  amountUsd: -report.cashbook.dailyOpexLines.reduce((sum, line) => sum + line.amountIdr, 0),
-                }}
-              />
-              {report.cashbook.periodicOpexLines.length ? (
-                <FinanceLinesTable
-                  title="Opex Berkala"
-                  lines={report.cashbook.periodicOpexLines.map((line) => ({
-                    code: line.code,
-                    label: line.label,
-                    amountUsd: -line.amountIdr,
-                    note: line.note || "Opex berkala",
-                  }))}
-                  footer={{
-                    label: "Subtotal Opex Berkala",
-                    amountUsd: -report.cashbook.periodicOpexLines.reduce(
-                      (sum, line) => sum + line.amountIdr,
-                      0
-                    ),
-                  }}
-                />
-              ) : null}
               {report.cashbook.subscriptions.length ? (
                 <div className="rounded-2xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-xs text-slate-400">
                   <p className="font-semibold uppercase tracking-wide text-slate-500">

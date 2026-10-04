@@ -1,3 +1,4 @@
+import { ensureLiveHub } from "@/lib/bot/liveHub";
 import { scanOpportunities, peekScanSignerBalances } from "@/lib/bot/scanner";
 import { simulateOpportunity } from "@/lib/bot/executor";
 import { executeOpportunityAutonomous } from "@/lib/bot/autonomousExecute";
@@ -5,47 +6,104 @@ import { autonomousSignerStatus, formatAutonomousSignerLine } from "@/lib/bot/pr
 import { requireExecutorRpcUrl } from "@/lib/bot/dualProvider";
 import { fetchSignerLiveBalances, assertSufficientExecFunds } from "@/lib/bot/signerBalances";
 import { getGasPriceWei, peekMemoizedGasWei } from "@/lib/bot/rpc";
-import { pickLiveGasWei } from "@/lib/bot/autoExecute";
+import { noteMevExecutorRedeployHold, pickLiveGasWei } from "@/lib/bot/autoExecute";
 import { buildExecuteCalldata } from "@/lib/bot/encodeArb";
 import { contractAddressFromEnv, vaultContractFromEnv } from "@/lib/bot/constants";
-import { defaultTradingChainId, normalizeTradingChainId } from "@/config/networks";
+import { defaultTradingChainId, isTradingChainId, normalizeTradingChainId } from "@/config/networks";
+import { readLiveChain, writeLiveChain, type LiveChainRecord } from "@/lib/bot/liveChain";
+import { defaultPairForChain } from "@/lib/chain/tokenPairs";
+import { defaultDexIdsForChain } from "@/lib/bot/dexRegistry";
+import { isOwnerNodeChainId } from "@/lib/owner/ownerNodeChains";
+import { hydrateChainQuotaFromDisk, patchChainQuotaPersistent } from "@/lib/owner/chainQuotaPersist";
 import { hardAdoptScanChain } from "@/lib/bot/scanRuntime";
 import { tokenWeiToUsd } from "@/lib/bot/configUnits";
 import { preflightDiagFromOpportunity, preflightExecuteCall } from "@/lib/bot/simulate";
 import { noteEmptySelectorRevert, routeBlacklistKey } from "@/lib/bot/routeBlacklist";
 import { readBotState, setKilled, updateConfig, appendTrade } from "@/lib/bot/store";
 import { recordProHeartbeatPing } from "@/lib/bot/heartbeat";
-import { notifyTxFailure, scheduleProTradeSuccessNotify } from "@/lib/bot/telegram";
+import { notifySkipOrFailProfitHtml, notifyTxFailure, scheduleProTradeSuccessNotify } from "@/lib/bot/telegram";
 import type { BotConfig, TradeTraceSnapshot } from "@/lib/bot/types";
 import { isUserSuspended } from "@/lib/db";
-import { Interface } from "ethers";
+import { Interface, ZeroAddress } from "ethers";
 import { scanOnlyExecutionBlockedResponse } from "@/lib/scanOnly/mode";
+import { emptyPlanMessage, planWithdraw, vaultChainOf } from "@/lib/vault/withdrawPlan";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const KILL_IFACE = new Interface(["function setKilled(bool value)"]);
-const WITHDRAW_IFACE = new Interface([
-  "function withdraw(uint256 amount)",
-  "function withdrawToken(address token, uint256 amount)",
-  "function emergencyWithdraw(address token, address to)",
-  "function rescueFunds(address tokenAddress)",
-  "function rescueFunds(address token, uint256 amount)",
-  "function rescueETH()",
-]);
+
+function redeployHoldResponse(chainId: string): Response | null {
+  const hold = noteMevExecutorRedeployHold(chainId);
+  if (!hold) return null;
+  notifySkipOrFailProfitHtml({
+    text: hold,
+    dedupeKey: `mev-executor-redeploy:${chainId}`,
+  });
+  return Response.json({ error: hold }, { status: 409 });
+}
+
+function authorityChainId(): ReturnType<typeof normalizeTradingChainId> {
+  const live = readLiveChain();
+  if (live?.locked && live.source === "manual" && isTradingChainId(live.chainId)) return live.chainId;
+  return "arbitrum";
+}
+
+async function vaultForChain(chainId: ReturnType<typeof normalizeTradingChainId>) {
+  const pair = defaultPairForChain(chainId);
+  const quote = pair.quoteSymbol;
+  const empty = {
+    chainId,
+    amount: "—",
+    symbol: quote,
+    pair: `${pair.baseSymbol} / ${quote}`,
+  };
+  try {
+    const live = await fetchSignerLiveBalances({
+      chainId,
+      quoteSymbol: quote,
+      baseSymbol: pair.baseSymbol,
+    });
+    if (!live) return empty;
+    const upper = quote.toUpperCase();
+    const stableAmount =
+      upper === "USDT" ? live.vaultUsdtFormatted : upper === "USDC" || upper === "USDBC" ? live.vaultUsdcFormatted : undefined;
+    const nativeAmount = upper === "SOL" || upper === live.nativeSymbol ? live.vaultEthFormatted : undefined;
+    return {
+      chainId,
+      amount: stableAmount || nativeAmount || live.vaultFormatted || "0.00",
+      symbol: stableAmount || nativeAmount ? quote : live.tokenSymbol || quote,
+      pair: `${pair.baseSymbol} / ${quote}`,
+    };
+  } catch {
+    return empty;
+  }
+}
 
 export async function GET() {
+  ensureLiveHub();
   try {
     const state = await readBotState();
-    const gasChain = normalizeTradingChainId(state.config.chainId);
+    const gasChain = authorityChainId();
+    const liveChain: LiveChainRecord = readLiveChain() ?? {
+      chainId: gasChain,
+      transport: "none",
+      connected: false,
+      locked: true,
+      source: "manual",
+      updatedAt: "",
+    };
     return Response.json(
       {
         ...state,
         chainId: gasChain,
+        config: { ...state.config, chainId: gasChain },
+        liveChain,
         gasPriceWei: pickLiveGasWei(state.gasPriceWei, peekMemoizedGasWei(gasChain).toString()),
         autonomousSigner: autonomousSignerStatus(gasChain),
         autonomousSignerLine: formatAutonomousSignerLine(gasChain),
         signerBalances: peekScanSignerBalances(),
+        vault: await vaultForChain(gasChain),
       },
       {
         headers: { "Cache-Control": "no-store, max-age=0" },
@@ -75,6 +133,7 @@ export async function GET() {
 export async function POST(request: Request) {
   let body: {
     action?: "scan" | "kill" | "resume" | "config" | "adopt-chain" | "withdraw-calldata" | "simulate" | "execute-calldata" | "record-trade" | "execute-autonomous" | "report-exec-error" | "heartbeat-ping";
+    manual?: boolean;
     config?: Partial<BotConfig>;
     pairIds?: string[];
     scanMode?: "single" | "full";
@@ -96,6 +155,11 @@ export async function POST(request: Request) {
     email?: string;
     wallet?: string;
     sandbox?: boolean;
+    chainId?: string;
+    quoteDecimals?: number;
+    quoteUsd?: number;
+    minProfitUsd?: number;
+    minerTipPct?: number;
     wssEnabled?: boolean;
     rpcFallbackEnabled?: boolean;
     botMode?: string;
@@ -108,21 +172,16 @@ export async function POST(request: Request) {
 
   if (body.action === "scan") {
     const scanMode = body.scanMode === "full" ? "full" : "single";
-    if (body.config?.chainId) {
-      hardAdoptScanChain(normalizeTradingChainId(body.config.chainId), "scan-post");
-    }
+    const scanChain = authorityChainId();
+    hardAdoptScanChain(scanChain, "scan-post");
     await updateConfig({
-      ...(body.config?.chainId ? { chainId: body.config.chainId } : {}),
-      ...(body.config?.pairId ? { pairId: body.config.pairId } : {}),
       ...(body.config?.loanAmountUsd !== undefined ? { loanAmountUsd: body.config.loanAmountUsd } : {}),
       ...(body.config?.aaveFeePct !== undefined ? { aaveFeePct: body.config.aaveFeePct } : {}),
       ...(body.config?.flashLoanProvider ? { flashLoanProvider: body.config.flashLoanProvider } : {}),
       ...(body.config?.flashLoanPlatforms ? { flashLoanPlatforms: body.config.flashLoanPlatforms } : {}),
-      ...(body.config?.activeDexIds ? { activeDexIds: body.config.activeDexIds } : {}),
       scanMode,
     });
     const stateBefore = await readBotState();
-    const scanChain = normalizeTradingChainId(body.config?.chainId || stateBefore.config.chainId);
     // Solana: router worker mandiri (lib/bot/solana) — bypass latensi jalur EVM.
     const opportunities =
       scanChain === "solana"
@@ -140,6 +199,7 @@ export async function POST(request: Request) {
         : await scanOpportunities({
             scanMode,
             pairIds: scanMode === "full" ? undefined : body.pairIds,
+            chainId: scanChain,
           });
     const state = await readBotState();
     if (state.killed) {
@@ -149,7 +209,7 @@ export async function POST(request: Request) {
         killed: true,
       });
     }
-    const gasChain = normalizeTradingChainId(body.config?.chainId || state.config.chainId);
+    const gasChain = scanChain;
     const stateChain = normalizeTradingChainId(state.config.chainId);
     let signerBalances = peekScanSignerBalances();
     if (gasChain === "solana" && (!signerBalances || signerBalances.nativeSymbol !== "SOL")) {
@@ -180,15 +240,37 @@ export async function POST(request: Request) {
   }
 
   if (body.action === "adopt-chain") {
+    if (body.manual !== true) {
+      const chainId = authorityChainId();
+      return Response.json({
+        ok: true,
+        ignored: true,
+        chainId,
+        liveChain: readLiveChain(),
+        vault: await vaultForChain(chainId),
+      });
+    }
     const chainId = normalizeTradingChainId(body.config?.chainId);
+    writeLiveChain({ chainId, locked: true, connected: false, transport: "none", source: "manual" });
+    if (isOwnerNodeChainId(chainId)) {
+      const quota = hydrateChainQuotaFromDisk();
+      const endpointOff = quota.rpcPrimary[chainId] !== true && quota.rpcBackup[chainId] !== true;
+      patchChainQuotaPersistent({
+        chains: { [chainId]: true },
+        ...(endpointOff ? { rpcBackup: { [chainId]: true } } : {}),
+      });
+    }
     hardAdoptScanChain(chainId, "ui-tab");
     const state = await updateConfig({
       chainId,
-      pairId: body.config?.pairId,
+      pairId: body.config?.pairId || defaultPairForChain(chainId).id,
+      activeDexIds: body.config?.activeDexIds?.length ? body.config.activeDexIds : defaultDexIdsForChain(chainId),
     });
     return Response.json({
       ok: true,
       chainId,
+      liveChain: readLiveChain(),
+      vault: await vaultForChain(chainId),
       opportunities: [],
       lastError: undefined,
       killed: state.killed,
@@ -216,6 +298,8 @@ export async function POST(request: Request) {
   }
 
   if (body.action === "simulate") {
+    const held = redeployHoldResponse(normalizeTradingChainId((await readBotState()).config.chainId));
+    if (held) return held;
     const result = await simulateOpportunity(body.opportunityId, body.to);
     return Response.json(result);
   }
@@ -248,6 +332,8 @@ export async function POST(request: Request) {
     }
     const execConfig = body.config ? { ...state.config, ...body.config } : state.config;
     const chainId = normalizeTradingChainId(execConfig.chainId);
+    const held = redeployHoldResponse(chainId);
+    if (held) return held;
     const contractAddress = contractAddressFromEnv(chainId);
     if (!contractAddress) {
       return Response.json(
@@ -371,6 +457,11 @@ export async function POST(request: Request) {
           netProfitWei: body.netProfitWei,
           trace: body.trace,
           loanAmountUsd: body.config?.loanAmountUsd,
+          chainId: body.chainId || body.config?.chainId,
+          quoteDecimals: body.quoteDecimals,
+          quoteUsd: body.quoteUsd,
+          minProfitUsd: body.minProfitUsd ?? body.config?.minProfitUsd,
+          minerTipPct: body.minerTipPct ?? body.config?.minerTipPct ?? body.config?.dynamicBribePercent,
           telegramId: body.telegramId,
           username: body.username,
           email: body.email,
@@ -406,8 +497,11 @@ export async function POST(request: Request) {
   }
 
   if (body.action === "config" && body.config) {
-    const state = await updateConfig(body.config);
-    return Response.json(state);
+    const nextConfig = { ...body.config };
+    if (body.manual !== true) delete nextConfig.chainId;
+    const state = await updateConfig(nextConfig);
+    const chainId = authorityChainId();
+    return Response.json({ ...state, chainId, config: { ...state.config, chainId }, liveChain: readLiveChain() });
   }
 
   if (body.action === "withdraw-calldata") {
@@ -416,20 +510,38 @@ export async function POST(request: Request) {
     if (!to) {
       return Response.json({ error: "Hubungkan dompet MetaMask terlebih dahulu." }, { status: 400 });
     }
-    if (!vaultAddress) {
+    const chain = vaultChainOf(state.config.chainId);
+    const vault = contractAddressFromEnv(chain) || vaultAddress;
+    if (!vault) {
       return Response.json(
-        { error: "Set NEXT_PUBLIC_BSC_VAULT_CONTRACT di .env.local ke alamat vault BSC." },
+        { error: `Alamat executor ${chain} belum di-set di environment.` },
         { status: 400 }
       );
     }
-    const data = WITHDRAW_IFACE.encodeFunctionData("rescueFunds", [
-      body.token || "0x0000000000000000000000000000000000000000",
-    ]);
+    const token = body.token || ZeroAddress;
+    const native = token === ZeroAddress;
+    const plan = planWithdraw({
+      selectors: null,
+      chain,
+      native,
+      pullAll: true,
+      token,
+      amount: 0n,
+      available: 0n,
+      dest: to,
+    });
+    if (plan.length === 0) {
+      return Response.json(
+        { error: emptyPlanMessage({ native, pullAll: true, selectors: null, chain }) },
+        { status: 400 }
+      );
+    }
     const killData = KILL_IFACE.encodeFunctionData("setKilled", [true]);
     await setKilled(true);
     return Response.json({
-      to: vaultAddress,
-      data,
+      to: vault,
+      data: plan[0].data,
+      method: plan[0].method,
       killData,
       killed: true,
     });

@@ -1,4 +1,3 @@
-import { proportionalMinProfitAnchorUsd, resolveAdaptiveMinProfitUsd } from "./adaptiveMinProfit";
 import { minProfitWeiFromLoan } from "./dynamicSlippage";
 import {
   clampMinPoolLiquidityUsd,
@@ -12,6 +11,7 @@ import { directedDexRoutes } from "./dexDirections";
 import { orderOpportunitiesByPairList } from "./opportunityOrder";
 import { isExtremeSpotSpread, liveSpotPrice, quoteTokenUsd, spotSpreadBps } from "./pricing";
 import { estimateTwoDexFlashArb } from "./profitEngine";
+import { optimalFlashloanSize } from "@/src/engine/dynamicSizing";
 import { fetchDexPoolsBatch, poolKey, type LivePool } from "./reserves";
 import { getBlockNumber, getGasPriceWei, peekMemoizedGasWei, rpcUrl } from "./rpc";
 import {
@@ -30,12 +30,20 @@ import {
   spreadMeetsMinimum,
   takeAutoSpreadWaitPeakIfDue,
 } from "./autoExecute";
-import { estimateOperationalNetProfitUsd, flashLoanProviderLabel, resolveFlashLoanFeePct, scanPoolFeePctFromBps } from "./flashLoanProviders";
+import { flashLoanProviderLabel, resolveFlashLoanFeePct, scanPoolFeePctFromBps } from "./flashLoanProviders";
+import {
+  bestFlashloanForTradingChain,
+  feePpmToBps,
+  feePpmToPct,
+  flashloanExecutionBlock,
+} from "@/src/flashloan/globalProviderSelector";
 import { logSkipProfitBreakdown } from "./skipProfitBreakdown";
 import { fetchSignerLiveBalances, logLowNativeGasIfNeeded, nativeSymbolForChain, type SignerLiveBalances, peekScanSignerBalances, rememberScanSignerBalances } from "./signerBalances";
 import { recordHeartbeatScan } from "@/lib/bot/heartbeat";
 import { formatAutonomousSignerLine } from "@/lib/bot/privateSigner";
-import { readBotState, writeBotState } from "./store";
+import { patchBotState, readBotState } from "./store";
+import { appendServerLog } from "./serverLog";
+import { publishFeedFromOpportunities } from "./liveHub";
 import type { DexId, Opportunity } from "./types";
 import { detectUniswapV3PoolFeePct } from "./uniswapV3Fee";
 import { getChain, type ChainId } from "@/lib/chain/networks";
@@ -66,15 +74,6 @@ function nativeGasCostUsd(gasPriceWei: bigint, gasLimit: bigint, nativeUsd: numb
   const native = Number(gasPriceWei * gasLimit) / 1e18;
   const usd = native * nativeUsd;
   return Number.isFinite(usd) && usd > 0 ? usd : 0;
-}
-
-function capLoanToPool(amountIn: bigint, buyQuote: bigint, sellQuote: bigint, capBps = 800): bigint {
-  const thinner = buyQuote < sellQuote ? buyQuote : sellQuote;
-  if (thinner <= 0n) return amountIn;
-  const bps = BigInt(Math.max(50, Math.min(2_000, capBps)));
-  const cap = (thinner * bps) / 10_000n;
-  if (cap <= 0n) return amountIn;
-  return amountIn > cap ? cap : amountIn;
 }
 
 let lastSignerBanner = "";
@@ -145,7 +144,6 @@ function scanSinglePair(input: {
   pools: Map<string, LivePool>;
   engine: ReturnType<typeof toEngineConfig>;
   gasPrice: bigint;
-  loanUsd: number;
   minProfitUsd: number;
   quoteUsd: number;
   gasUsd: number;
@@ -181,19 +179,22 @@ function scanSinglePair(input: {
       if (isExtremeSpotSpread(spreadBps, MAX_SPOT_SPREAD_BPS)) continue;
 
       const concentrated = dexIsConcentrated(buyDex) || dexIsConcentrated(sellDex);
-      const desiredIn = BigInt(usdToTokenWei(input.loanUsd, quoteDecimals, quoteUsd));
-      const amountIn = capLoanToPool(
-        desiredIn,
-        buyPool.reserveQuote,
-        sellPool.reserveQuote,
-        concentrated ? 250 : 800
-      );
+      const dynamicSize = optimalFlashloanSize({
+        buyReserveQuote: buyPool.reserveQuote,
+        sellReserveQuote: sellPool.reserveQuote,
+        buyTvlUsd: buyLiq,
+        sellTvlUsd: sellLiq,
+        quoteDecimals,
+        quoteUsd,
+        concentrated,
+      });
+      const amountIn = dynamicSize.amountInWei;
       if (amountIn <= 0n) continue;
 
       const poolCheck = evaluatePoolRouteSafety({
         buyPool,
         sellPool,
-        amountIn: desiredIn,
+        amountIn,
         quoteUsd,
         minPoolLiquidityUsd: input.minPoolLiquidityUsd,
         maxPriceImpactPct: input.maxPriceImpactPct,
@@ -201,29 +202,32 @@ function scanSinglePair(input: {
       if (!poolCheck.ok) continue;
 
       const gasCostQuoteWei = BigInt(usdToTokenWei(input.gasUsd, quoteDecimals, quoteUsd));
-      const adaptive = resolveAdaptiveMinProfitUsd({
-        configMinProfitUsd: input.minProfitUsd,
-        gasCostUsd: input.gasUsd,
-        bribePct: input.minerTipPct,
-        spreadBps,
-        minSpreadBps: engine.minSpreadBps,
-        loanAmountUsd: input.loanUsd,
+      const routedFlash = bestFlashloanForTradingChain(chainId, {
+        poolFee: buyPool.v3Fee,
+        poolFeePct: scanPoolFeePctFromBps(buyPool.feeBps),
       });
       const pairEngine = {
         ...engine,
         minProfitWei: minProfitWeiFromLoan(amountIn).toString(),
+        flashFeePpm: routedFlash?.feePpm ?? engine.flashFeePpm,
+        aaveFeeBps: routedFlash ? feePpmToBps(routedFlash.feePpm) : engine.aaveFeeBps,
       };
       const result = estimateTwoDexFlashArb({
         amountIn,
+        dynamicSize,
         buy: {
           reserveIn: buyPool.reserveQuote,
           reserveOut: buyPool.reserveBase,
           feeBps: buyPool.feeBps,
+          v3: buyPool.v3Quote,
+          zeroForOne: buyPool.quoteIsToken0,
         },
         sell: {
           reserveIn: sellPool.reserveBase,
           reserveOut: sellPool.reserveQuote,
           feeBps: sellPool.feeBps,
+          v3: sellPool.v3Quote,
+          zeroForOne: !sellPool.quoteIsToken0,
         },
         gasPriceWei: gasPrice,
         gasLimit: BigInt(engine.gasLimit),
@@ -233,29 +237,12 @@ function scanSinglePair(input: {
         useSpotFill: true,
       });
 
-      const spreadOk = spreadMeetsMinimum(spreadBps, engine.minSpreadBps);
-      let netProfit = result.netProfit;
-      let grossProfit = result.grossProfit;
+      const netProfit = result.netProfit;
+      const grossProfit = result.grossProfit;
       const loanUsdActual = tokenWeiToUsd(amountIn, quoteDecimals, quoteUsd);
-      if (spreadOk && netProfit <= 0n) {
-        const opNet = estimateOperationalNetProfitUsd({
-          loanAmountUsd: loanUsdActual,
-          minSpreadPct: spreadBps / 100,
-          minerTipPct: input.minerTipPct,
-          flashFeePct: input.aaveFeePct,
-        });
-        const capturedUsd = Math.max(
-          adaptive.minProfitUsd,
-          proportionalMinProfitAnchorUsd(loanUsdActual),
-          opNet - input.gasUsd
-        );
-        if (capturedUsd > 0) {
-          netProfit = BigInt(usdToTokenWei(capturedUsd, quoteDecimals, quoteUsd));
-          grossProfit = netProfit + result.gasCost;
-        }
-      }
-
-      const ready = spreadOk && netProfit > 0n;
+      const ready = result.profitable;
+      const grossForBribeUsd = loanUsdActual * (spreadBps / 10_000);
+      const bribeUsd = Math.max(0, grossForBribeUsd) * ((Number.isFinite(input.minerTipPct) ? input.minerTipPct : 0) / 100);
       found.push({
         id: `${pair.id}-${buyDex}-${sellDex}`,
         tokenPair: pair.label,
@@ -295,6 +282,7 @@ function scanSinglePair(input: {
         buyLiquidityUsd: poolCheck.buyLiquidityUsd,
         sellLiquidityUsd: poolCheck.sellLiquidityUsd,
         priceImpactPct: poolCheck.priceImpactPct,
+        bribeUsd,
       });
   }
 
@@ -305,6 +293,16 @@ export interface ScanOptions {
   /** Daftar pair id yang akan dipindai; default dari config.scanMode / pairId */
   pairIds?: string[];
   scanMode?: "single" | "full";
+  /**
+   * Cadangan sudah ada di RAM (log Sync/Swap).
+   * Scan tidak memanggil getReserves, slot0, atau getAmountsOut.
+   */
+  eventDriven?: boolean;
+  /** Rantai milik snapshot RAM. Dipakai agar scan event tidak pindah ke chainId di config. */
+  chainId?: ChainId;
+  localPools?: Map<string, LivePool>;
+  blockNumber?: number;
+  gasPriceWei?: bigint;
 }
 
 function resolveScanPairIds(
@@ -338,6 +336,7 @@ const uniFeeCache = new Map<string, { pct: number; at: number }>();
 const UNI_FEE_CACHE_MS = 60_000;
 const lastNativeUsd = new Map<string, number>();
 let lastPairScopeLog = "";
+let lastEventSignature = "";
 
 function resetScannerLocals(): void {
   lastSignerBanner = "";
@@ -345,6 +344,7 @@ function resetScannerLocals(): void {
   uniFeeCache.clear();
   lastNativeUsd.clear();
   lastPairScopeLog = "";
+  lastEventSignature = "";
   clearThinPairGate();
   lastMinLiqGate = -1;
 }
@@ -357,13 +357,36 @@ export async function scanOpportunities(options?: ScanOptions): Promise<Opportun
   hydrateChainQuotaFromDisk();
   const state = await readBotState();
   if (state.killed) {
-    await writeBotState({ ...state, running: false, opportunities: [], lastError: undefined });
+    await patchBotState((current) => ({
+      ...current,
+      running: false,
+      opportunities: [],
+      lastError: undefined,
+    }));
     return [];
   }
 
   const config = { ...DEFAULT_BOT_CONFIG, ...state.config };
-  const engine = toEngineConfig(config);
-  const chainId = normalizeTradingChainId(config.chainId);
+  const chainId = options?.chainId
+    ? normalizeTradingChainId(options.chainId)
+    : normalizeTradingChainId(config.chainId);
+  const blocked = flashloanExecutionBlock(chainId);
+  if (blocked) {
+    const reason = `[SKIP] ${blocked}`;
+    appendServerLog(reason);
+    console.log(reason);
+    await patchBotState((current) => ({
+      ...current,
+      opportunities: [],
+      lastError: reason,
+    }));
+    return [];
+  }
+  const engine = toEngineConfig({ ...config, chainId });
+  const bestFlash = bestFlashloanForTradingChain(chainId);
+  const autoFlashFeePct = bestFlash
+    ? feePpmToPct(bestFlash.feePpm)
+    : resolveFlashLoanFeePct(config.flashLoanPlatforms, config.flashLoanProvider).feePct;
   const cycle = beginScanCycle(chainId);
   const gen = cycle.generation;
   const plan = scanPlanForChain(chainId, config.activeDexIds);
@@ -386,8 +409,6 @@ export async function scanOpportunities(options?: ScanOptions): Promise<Opportun
     if (!isForeignScanChain(chainId)) console.log(scopeLog);
   }
 
-  const loanUsd = Math.max(1, config.loanAmountUsd || DEFAULT_BOT_CONFIG.loanAmountUsd);
-
   try {
     const signerLine = formatAutonomousSignerLine(chainId);
     if (signerLine !== lastSignerBanner) {
@@ -399,12 +420,12 @@ export async function scanOpportunities(options?: ScanOptions): Promise<Opportun
       return [];
     }
     if (!isScanRpcAllowed(chainId)) {
-      await writeBotState({
-        ...state,
+      await patchBotState((current) => ({
+        ...current,
         running: true,
         opportunities: [],
         lastError: `Jaringan ${chainId} OFF di Owner Overview — scan RPC ditahan.`,
-      });
+      }));
       return [];
     }
 
@@ -416,7 +437,7 @@ export async function scanOpportunities(options?: ScanOptions): Promise<Opportun
         pairIds: scanPairIds,
         persist: true,
       });
-      assertScanLive(gen);
+      assertScanLive(gen, chainId);
       return opportunities;
     }
 
@@ -426,12 +447,12 @@ export async function scanOpportunities(options?: ScanOptions): Promise<Opportun
         : chainId === "polygon"
           ? "RPC polygon belum dikonfigurasi. Isi Primary RPC di Owner Dashboard atau set POLYGON_RPC_URL (or RPC_HTTP_URL_POLYGON) di .env.local."
           : `RPC ${chainId} belum dikonfigurasi.`;
-      await writeBotState({
-        ...state,
+      await patchBotState((current) => ({
+        ...current,
         running: true,
         opportunities: [],
         lastError,
-      });
+      }));
       return [];
     }
 
@@ -477,11 +498,27 @@ export async function scanOpportunities(options?: ScanOptions): Promise<Opportun
       }
     }
 
-    const [gasPrice, block, livePools] = await Promise.all([
-      getGasPriceWei(undefined, chainId),
-      getBlockNumber(undefined, chainId),
-      fetchDexPoolsBatch(selectedDex, fetchPairs, chainId),
-    ]);
+    const eventDriven = Boolean(options?.eventDriven && options.localPools);
+    let gasPrice: bigint;
+    let block: number;
+    let livePools: Map<string, LivePool>;
+    if (eventDriven && options?.localPools) {
+      livePools = options.localPools;
+      block = options.blockNumber ?? 0;
+      gasPrice =
+        options.gasPriceWei && options.gasPriceWei > 0n
+          ? options.gasPriceWei
+          : peekMemoizedGasWei(chainId);
+    } else {
+      const [nextGas, nextBlock, nextPools] = await Promise.all([
+        getGasPriceWei(undefined, chainId),
+        getBlockNumber(undefined, chainId),
+        fetchDexPoolsBatch(selectedDex, fetchPairs, chainId),
+      ]);
+      gasPrice = nextGas;
+      block = nextBlock;
+      livePools = nextPools;
+    }
     assertScanLive(gen, chainId);
     let nativeUsd = midQuoteUsd(livePools, gasUsdPair);
     if (!(nativeUsd > 0)) nativeUsd = lastNativeUsd.get(chainId) ?? 0;
@@ -491,7 +528,10 @@ export async function scanOpportunities(options?: ScanOptions): Promise<Opportun
 
     const uniFeeByPair = new Map<string, number>();
     const minLiqUsd = clampMinPoolLiquidityUsd(config.minPoolLiquidityUsd);
-    if (config.flashLoanProvider === "uniswap" || config.flashLoanPlatforms?.uniswap?.enabled) {
+    if (
+      !eventDriven &&
+      (config.flashLoanProvider === "uniswap" || config.flashLoanPlatforms?.uniswap?.enabled)
+    ) {
       const now = Date.now();
       await Promise.all(
         targets.map(async ({ pair, tokens }) => {
@@ -548,14 +588,11 @@ export async function scanOpportunities(options?: ScanOptions): Promise<Opportun
           pools: livePools,
           engine,
           gasPrice,
-          loanUsd,
           minProfitUsd: config.minProfitUsd,
           quoteUsd,
           gasUsd,
           minerTipPct: config.minerTipPct,
-          aaveFeePct: resolveFlashLoanFeePct(config.flashLoanPlatforms, config.flashLoanProvider, {
-            uniswapPoolFeePct: uniFeeByPair.get(pair.id),
-          }).feePct,
+          aaveFeePct: autoFlashFeePct,
           minPoolLiquidityUsd: minLiqUsd,
           maxPriceImpactPct: config.maxPriceImpactPct,
           uniswapPoolFeePct: uniFeeByPair.get(pair.id),
@@ -589,17 +626,21 @@ export async function scanOpportunities(options?: ScanOptions): Promise<Opportun
       );
     }
 
-    await writeBotState({
-      ...latest,
-      running: true,
-      config: { ...latest.config, scanMode, pairId: latest.config.pairId || scanPairIds[0] },
-      lastBlock: block > 0 ? block : 0,
-      gasPriceWei: pickLiveGasWei(gasPrice.toString(), peekMemoizedGasWei(chainId).toString()),
-      opportunities: nextOpportunities.filter(
-        (item) => item.chainId === chainId && scanPairIds.includes(item.pairId)
-      ),
-      lastError,
+    await patchBotState((current) => {
+      if (normalizeTradingChainId(current.config.chainId) !== chainId) return current;
+      return {
+        ...current,
+        running: true,
+        config: { ...current.config, scanMode, pairId: current.config.pairId || scanPairIds[0] },
+        lastBlock: block > 0 ? block : 0,
+        gasPriceWei: pickLiveGasWei(gasPrice.toString(), peekMemoizedGasWei(chainId).toString()),
+        opportunities: nextOpportunities.filter(
+          (item) => item.chainId === chainId && scanPairIds.includes(item.pairId)
+        ),
+        lastError,
+      };
     });
+    publishFeedFromOpportunities(nextOpportunities);
 
     try {
       recordHeartbeatScan({
@@ -617,26 +658,42 @@ export async function scanOpportunities(options?: ScanOptions): Promise<Opportun
     const highlight = pairHighlights[0] ?? featuredScanRoute(nextOpportunities);
     const readyCount = readyOpportunityCount(nextOpportunities);
     const maxSpreadBps = highlight?.spreadBps ?? 0;
-    const signerBalances =
-      peekScanSignerBalances() ??
-      (await fetchSignerLiveBalances({
+    const signerBalances = eventDriven
+      ? peekScanSignerBalances()
+      : peekScanSignerBalances() ??
+        (await fetchSignerLiveBalances({
+          chainId,
+          quoteSymbol: highlight?.quoteSymbol,
+          baseSymbol: highlight?.baseSymbol,
+        }));
+    rememberScanSignerBalances(signerBalances);
+    if (!eventDriven) {
+      void fetchSignerLiveBalances({
         chainId,
         quoteSymbol: highlight?.quoteSymbol,
         baseSymbol: highlight?.baseSymbol,
-      }));
-    rememberScanSignerBalances(signerBalances);
-    void fetchSignerLiveBalances({
-      chainId,
-      quoteSymbol: highlight?.quoteSymbol,
-      baseSymbol: highlight?.baseSymbol,
-    }).then((fresh) => {
-      if (fresh && isScanLive(gen, chainId)) rememberScanSignerBalances(fresh);
-    });
+      }).then((fresh) => {
+        if (fresh && isScanLive(gen, chainId)) rememberScanSignerBalances(fresh);
+      });
+    }
     logLowNativeGasIfNeeded(Boolean(signerBalances?.nativeLow), chainId);
     if (!isScanLive(gen, chainId)) return [];
     const gasSymbol = nativeSymbolForChain(chainId);
     const gasBalances =
       signerBalances?.nativeSymbol === gasSymbol ? signerBalances : null;
+    if (eventDriven) {
+      const signature = `${chainId}:${readyCount}:${Math.round(maxSpreadBps)}:${nextOpportunities.length}`;
+      if (signature === lastEventSignature) return nextOpportunities;
+      lastEventSignature = signature;
+    }
+    if (readyCount > 0) {
+      appendServerLog({
+        level: "exec",
+        source: "VALIDATED",
+        chainId,
+        message: `Spread ${(maxSpreadBps / 100).toFixed(2)}% lolos ambang · ${readyCount} rute · ${highlight?.pair || "—"} (${highlight?.dexIn || "DEX"} → ${highlight?.dexOut || "DEX"})`,
+      });
+    }
     console.log(
       formatRuntimeScanLine({
         sandbox: false,
@@ -645,7 +702,7 @@ export async function scanOpportunities(options?: ScanOptions): Promise<Opportun
         ready: readyCount,
         maxSpreadBps,
         gasPriceWei: pickLiveGasWei(gasPrice.toString(), peekMemoizedGasWei(chainId).toString()),
-        provider: flashLoanProviderLabel(config.flashLoanProvider),
+        provider: bestFlash?.name ?? flashLoanProviderLabel(config.flashLoanProvider),
         pair: highlight?.pair,
         dexIn: highlight?.dexIn,
         dexOut: highlight?.dexOut,
@@ -677,6 +734,7 @@ export async function scanOpportunities(options?: ScanOptions): Promise<Opportun
         lastQueueLogLine = queueLine;
         lastQueueLogAt = loggedAt;
         console.log(queueLine);
+        appendServerLog({ level: "info", source: "QUEUE", chainId, message: queueLine });
       }
     }
     noteAutoSpreadWaitPeak(maxSpreadBps);
@@ -686,8 +744,7 @@ export async function scanOpportunities(options?: ScanOptions): Promise<Opportun
         const topReject = [...nextOpportunities]
           .filter((item) => item.status !== "ready")
           .sort((a, b) => (b.spreadBps || 0) - (a.spreadBps || 0))[0];
-        console.log(
-          formatAutoSignalSkipLine({
+        const skipLine = formatAutoSignalSkipLine({
             maxSpreadBps: Math.max(peak, maxSpreadBps),
             minSpreadPct: config.minSpreadPct,
             minSpreadBps: minBps,
@@ -696,8 +753,9 @@ export async function scanOpportunities(options?: ScanOptions): Promise<Opportun
             dexIn: highlight?.dexIn || topReject?.dexAName || topReject?.buyExchange,
             dexOut: highlight?.dexOut || topReject?.dexBName || topReject?.sellExchange,
             chainId,
-          })
-        );
+          });
+        console.log(skipLine);
+        appendServerLog({ level: "warn", source: "SKIPPED", chainId, message: skipLine });
         if (topReject) {
           logSkipProfitBreakdown({
             opp: topReject,
@@ -718,19 +776,19 @@ export async function scanOpportunities(options?: ScanOptions): Promise<Opportun
         const topReject = [...nextOpportunities]
           .filter((item) => item.status !== "ready")
           .sort((a, b) => (b.spreadBps || 0) - (a.spreadBps || 0))[0];
-        console.log(
-          formatAutoSpreadWaitLine({
+        const waitLine = formatAutoSpreadWaitLine({
             maxSpreadBps: peak,
             minSpreadPct: config.minSpreadPct,
             minSpreadBps: minSpreadBpsFromConfig(config),
             reason: topReject?.reason,
-            provider: flashLoanProviderLabel(config.flashLoanProvider),
+            provider: bestFlash?.name ?? flashLoanProviderLabel(config.flashLoanProvider),
             pair: highlight?.pair || topReject?.tokenPair,
             dexIn: highlight?.dexIn || topReject?.dexAName || topReject?.buyExchange,
             dexOut: highlight?.dexOut || topReject?.dexBName || topReject?.sellExchange,
             chainId,
-          })
-        );
+          });
+        console.log(waitLine);
+        appendServerLog({ level: "warn", source: "SKIPPED", chainId, message: waitLine });
       }
     }
 
@@ -738,7 +796,7 @@ export async function scanOpportunities(options?: ScanOptions): Promise<Opportun
   } catch (error) {
     if (error instanceof ScanRuntimeAbortError) return [];
     const lastError = stringifyUnknownError(error);
-    await writeBotState({ ...state, lastError });
+    await patchBotState((current) => ({ ...current, lastError }));
     try {
       recordHeartbeatScan({ routes: 0, ready: 0, ok: false });
     } catch {

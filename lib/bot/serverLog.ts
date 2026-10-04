@@ -6,6 +6,7 @@ export interface ServerLogEntry {
   level: ServerLogLevel;
   source: string;
   message: string;
+  chainId?: string;
 }
 
 type LogGlobal = typeof globalThis & {
@@ -13,6 +14,12 @@ type LogGlobal = typeof globalThis & {
 };
 
 const MAX_LOGS = 400;
+const listeners = new Set<(entry: ServerLogEntry) => void>();
+
+/** Server proses mendaftarkan pengirim dashboard. Modul ini tidak mengimpor socket. */
+export function subscribeServerLogs(listener: (entry: ServerLogEntry) => void): void {
+  listeners.add(listener);
+}
 
 function store(): ServerLogEntry[] {
   const g = globalThis as LogGlobal;
@@ -28,6 +35,7 @@ export function appendServerLog(input: {
   level: ServerLogLevel;
   source: string;
   message: string;
+  chainId?: string;
 }): ServerLogEntry {
   const entry: ServerLogEntry = {
     id: `slog-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
@@ -35,8 +43,10 @@ export function appendServerLog(input: {
     level: input.level,
     source: input.source,
     message: input.message.slice(0, 2000),
+    chainId: input.chainId,
   };
   (globalThis as LogGlobal).__mevArbServerLogs = [...store(), entry].slice(-MAX_LOGS);
+  for (const listener of listeners) listener(entry);
   return entry;
 }
 

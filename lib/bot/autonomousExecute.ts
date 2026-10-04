@@ -1,16 +1,17 @@
+import { flashloanExecutionBlock } from "@/src/flashloan/globalProviderSelector";
+import { noteMevExecutorRedeployHold } from "@/lib/bot/autoExecute";
 import { AUTO_EXECUTE, DEFAULT_BOT_CONFIG } from "@/lib/bot/constants";
-import { proportionalMinProfitAnchorUsd, resolveAdaptiveMinProfitUsd } from "@/lib/bot/adaptiveMinProfit";
+import { formatNetProfitSkip, minProfitUsdFromLoan } from "@/lib/bot/adaptiveMinProfit";
 import {
   formatAutoExecuteQueueLine,
   formatQueueRouteLabel,
   gasPriceToGwei,
   maxOpportunitySpreadBps,
   minSpreadBpsFromConfig,
-  opportunityMeetsNetProfitFloor,
-  opportunityUsdValue,
   orderAutoExecuteQueue,
   resolveAutoExecuteCooldownMs,
 } from "@/lib/bot/autoExecute";
+import { blockLiveExecutionForScanOnly, SCAN_ONLY_HOLD_MESSAGE } from "@/lib/bot/scanOnlyGate";
 import { buildExecuteCalldata } from "@/lib/bot/encodeArb";
 import { evaluateGasStrategy, type GasStrategyDecision } from "@/lib/bot/gasStrategy";
 import {
@@ -22,12 +23,14 @@ import { requireExecutorRpcUrl } from "@/lib/bot/dualProvider";
 import { getBlockNumber, getGasPriceWei } from "@/lib/bot/rpc";
 import { fetchSignerLiveBalances, assertSufficientExecFunds, nativeSymbolForChain } from "@/lib/bot/signerBalances";
 import { formatEstimatedTxGasFromPrice } from "@/lib/bot/gasCostEstimate";
+import { runOnChainDryRun } from "@/lib/bot/dryRun";
 import { isPreflightFailure, simulateEncodedCall } from "@/lib/bot/simulate";
 import { isRouteTemporarilyBlacklisted, routeBlacklistKey } from "@/lib/bot/routeBlacklist";
 import { opportunityFailsPoolSafety, formatPoolLiquidityUsd } from "@/lib/bot/poolSafety";
 import { appendTrade, readBotState, writeBotState } from "@/lib/bot/store";
-import { isScanOnlyMode, SCAN_ONLY_BLOCK_MESSAGE } from "@/lib/scanOnly/mode";
 import { notifyTxFailure, scheduleProTradeSuccessNotify } from "@/lib/bot/telegram";
+import { appendServerLog } from "@/lib/bot/serverLog";
+import { noteFeedStatus } from "@/lib/bot/liveHub";
 import { buildTradeTraceSnapshot } from "@/lib/bot/transactionTrace";
 import { extractTxHash, formatRevertTxLog, logRevertWithTxHash } from "@/lib/chain/explorer";
 import {
@@ -42,7 +45,7 @@ import {
   minAmountOutForExec,
 } from "@/lib/bot/dynamicSlippage";
 import { resolveOpportunitySwapRouters } from "@/lib/bot/constants";
-import { logFinancialBreakdown, logSkipProfitBreakdown } from "@/lib/bot/skipProfitBreakdown";
+import { computeSkipProfitBreakdown, logFinancialBreakdown, logSkipProfitBreakdown } from "@/lib/bot/skipProfitBreakdown";
 import { isKaminoFlashProvider } from "@/lib/bot/solana/kaminoConstants";
 import type { BotConfig, Opportunity } from "@/lib/bot/types";
 import { isTradingChainId, normalizeTradingChainId } from "@/config/networks";
@@ -92,6 +95,18 @@ class QueueSkipError extends Error {
   }
 }
 
+function announceRedeployHold(chainId: string): string | null {
+  const hold = noteMevExecutorRedeployHold(chainId);
+  if (!hold) return null;
+  void import("@/lib/bot/telegram").then((mod) => {
+    mod.notifySkipOrFailProfitHtml({
+      text: hold,
+      dedupeKey: `mev-executor-redeploy:${chainId}`,
+    });
+  });
+  return hold;
+}
+
 export async function executeOpportunityAutonomous(input: {
   opportunityId?: string;
   opportunityIds?: string[];
@@ -103,8 +118,8 @@ export async function executeOpportunityAutonomous(input: {
   if (state.killed) {
     throw new Error("Kill switch aktif — eksekusi otonom ditahan.");
   }
-  if (isScanOnlyMode(input.botMode)) {
-    throw new Error(SCAN_ONLY_BLOCK_MESSAGE);
+  if (blockLiveExecutionForScanOnly()) {
+    throw new Error(SCAN_ONLY_HOLD_MESSAGE);
   }
 
   hydrateChainQuotaFromDisk();
@@ -119,6 +134,10 @@ export async function executeOpportunityAutonomous(input: {
     isTradingChainId(value)
   );
   const chainId = normalizeTradingChainId(chainHint || state.config.chainId);
+  const redeployHold = announceRedeployHold(chainId);
+  if (redeployHold) {
+    throw new Error(redeployHold);
+  }
   const unpinExec = pinExecChain(chainId);
   const mergedLoan =
     input.config?.loanAmountUsd ?? state.config.loanAmountUsd ?? DEFAULT_BOT_CONFIG.loanAmountUsd;
@@ -127,7 +146,7 @@ export async function executeOpportunityAutonomous(input: {
     ...state.config,
     ...input.config,
     chainId,
-    minProfitUsd: proportionalMinProfitAnchorUsd(mergedLoan),
+    minProfitUsd: minProfitUsdFromLoan(mergedLoan),
     loanAmountUsd: mergedLoan,
   };
 
@@ -234,6 +253,10 @@ export async function executeOpportunityAutonomous(input: {
         const reason = compactExecError(error);
         const fallback = isAutoExecFallbackableError(error) && index < queue.length - 1;
         console.log(`[QUEUE] peringkat ${rank} dilewati — ${reason}`);
+        if (reason.startsWith("[SKIP] Eksekusi ditahan: MevExecutor")) {
+          skipped.push({ rank, id: opp.id, reason });
+          break;
+        }
         logSkipProfitBreakdown(
           {
             opp,
@@ -290,6 +313,16 @@ async function attemptAutonomousOpportunity(input: {
 }): Promise<string> {
   const { opp, execConfig, chainId, signerAddress, liveGas, gate, stateLastBlock, now } = input;
 
+  const redeployHold = announceRedeployHold(chainId);
+  if (redeployHold) {
+    throw new QueueSkipError(redeployHold);
+  }
+
+  const blocked = flashloanExecutionBlock(chainId);
+  if (blocked) {
+    throw new QueueSkipError(`[SKIP] ${blocked}`);
+  }
+
   const routeKey = routeBlacklistKey(opp);
   const ban = isRouteTemporarilyBlacklisted(routeKey, opp.detectedBlock || stateLastBlock || 0);
   if (ban.blocked) {
@@ -298,17 +331,15 @@ async function attemptAutonomousOpportunity(input: {
     );
   }
 
-  if (!opportunityMeetsNetProfitFloor(opp, execConfig) && chainId !== "solana") {
-    const gasCostUsd = opportunityUsdValue(opp.gasCostWei || "0", opp);
-    const floorUsd = resolveAdaptiveMinProfitUsd({
-      loanAmountUsd: execConfig.loanAmountUsd,
-      configMinProfitUsd: execConfig.minProfitUsd,
-      gasCostUsd,
-      bribePct: execConfig.dynamicBribePercent ?? execConfig.minerTipPct,
-      spreadBps: opp.spreadBps,
-    }).minProfitUsd;
+  const profitMath = computeSkipProfitBreakdown({
+    opp,
+    config: execConfig,
+    liveGasWei: liveGas,
+    chainId,
+  });
+  if (chainId !== "solana" && profitMath.decisionNetUsd + 1e-9 < profitMath.floorUsd) {
     const skip = new QueueSkipError(
-      `[SKIP] Net profit di bawah lantai minProfitUsd $${floorUsd.toFixed(3)} (max loan×0.60%/costFloor).`
+      formatNetProfitSkip(profitMath.decisionNetUsd, profitMath.floorUsd)
     );
     logSkipProfitBreakdown(
       {
@@ -391,6 +422,39 @@ async function attemptAutonomousOpportunity(input: {
     opp.detectedBlock = detectedBlock;
   }
 
+  if (opp.status === "ready") {
+    const dry = await runOnChainDryRun({
+      opportunity: opp,
+      from: signerAddress,
+      to: built.to,
+      data: built.data,
+      chainId,
+      gasPriceWei: liveGas,
+      rpcUrl: requireExecutorRpcUrl(chainId),
+      fallbackGasLimit: execConfig.gasLimit,
+    });
+    try {
+      const latest = await readBotState();
+      await writeBotState({
+        ...latest,
+        opportunities: latest.opportunities.map((item) =>
+          item.id === dry.opportunity.id ? dry.opportunity : item
+        ),
+      });
+    } catch (persistError) {
+      console.warn(
+        "[DRY RUN] gagal menyimpan status",
+        persistError instanceof Error ? persistError.message : persistError
+      );
+    }
+    Object.assign(opp, dry.opportunity);
+    if (!dry.ok) {
+      noteFeedStatus(opp.id, dry.outcome === "reverted" ? "reverted" : "skipped");
+      throw new QueueSkipError(dry.reason || "[DRY RUN] simulasi tidak lolos.");
+    }
+    noteFeedStatus(opp.id, "validated");
+  }
+
   let txHash: string;
   try {
     txHash = await sendAutonomousContractTx({
@@ -459,6 +523,10 @@ async function attemptAutonomousOpportunity(input: {
       data: built.data,
       chainId,
       rpcUrl: requireExecutorRpcUrl(chainId),
+      label: {
+        pair: opp.tokenPair,
+        route: `${opp.buyExchange || opp.buyDex} → ${opp.sellExchange || opp.sellDex}`,
+      },
     });
     let message = /\[TX HASH\]|\[EXEC\] Tx Hash:|\[REVERT\] Tx Hash:/.test(abort)
       ? abort
@@ -470,6 +538,12 @@ async function attemptAutonomousOpportunity(input: {
     }
     if (isExecRevertFailure(message) || isSlippageLikeRevert(message)) {
       console.warn("[EXEC] execution reverted");
+      appendServerLog({
+        level: "error",
+        source: "REVERTED",
+        message: `${opp.tokenPair} · ${compactExecError(message)}`,
+      });
+      noteFeedStatus(opp.id, "reverted");
       logSkipProfitBreakdown({
         opp,
         config: execConfig,
@@ -559,6 +633,12 @@ async function attemptAutonomousOpportunity(input: {
     detailReason: `Tx broadcast sukses · hash ${txHash}`,
     headline: `[EXEC] sukses ${opp.tokenPair} · ${txHash}`,
   });
+  appendServerLog({
+    level: "exec",
+    source: "EXECUTED",
+    message: `${opp.tokenPair} · ${opp.buyExchange} → ${opp.sellExchange} · tx ${txHash}`,
+  });
+  noteFeedStatus(opp.id, "executed");
 
   const isPro = execConfig.aaveFeePct < 0.09;
   const trace = buildTradeTraceSnapshot({
@@ -591,6 +671,11 @@ async function attemptAutonomousOpportunity(input: {
       route: `${opp.buyExchange} → ${opp.sellExchange}`,
       netProfitWei: opp.netProfitWei,
       loanAmountUsd: execConfig.loanAmountUsd,
+      chainId: opp.chainId || execConfig.chainId,
+      quoteDecimals: opp.quoteDecimals,
+      quoteUsd: opp.quoteUsd,
+      minProfitUsd: execConfig.minProfitUsd,
+      minerTipPct: execConfig.minerTipPct ?? execConfig.dynamicBribePercent,
       trace,
     });
   } catch (error) {
@@ -603,18 +688,32 @@ async function attemptAutonomousOpportunity(input: {
   return txHash;
 }
 
+let lastAutonomousQueueLog = "";
+let lastAutonomousQueueLogAt = 0;
+
 export async function tryServerAutonomousTick(): Promise<void> {
   const state = await readBotState();
   if (state.killed) return;
-  if (state.config.gasStrategyMode !== "slow") return;
   const chainId = normalizeTradingChainId(state.config.chainId);
-  const signer = autonomousSignerStatus(chainId);
-  if (!signer.ready) return;
-
   const queue = orderAutoExecuteQueue(state.opportunities, state.config, {
     lastRotateOppId: state.lastExecRotateOppId,
   });
+  const queueLine = `[QUEUE] Memproses antrean otonom. Jumlah rute aktif di RAM: ${queue.length}`;
+  const nowLog = Date.now();
+  if (
+    queueLine !== lastAutonomousQueueLog ||
+    nowLog - lastAutonomousQueueLogAt >= AUTO_EXECUTE.signalSkipLogMs
+  ) {
+    lastAutonomousQueueLog = queueLine;
+    lastAutonomousQueueLogAt = nowLog;
+    console.log(queueLine);
+    appendServerLog({ level: "info", source: "QUEUE", chainId, message: queueLine });
+  }
+  const signer = autonomousSignerStatus(chainId);
+  if (!signer.ready) return;
   if (queue.length === 0) return;
+  if (blockLiveExecutionForScanOnly()) return;
+  if (state.config.gasStrategyMode !== "slow") return;
 
   try {
     const result = await executeOpportunityAutonomous({});

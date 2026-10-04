@@ -1,0 +1,15 @@
+{
+  "name": "MEV Core Engine",
+  "short_name": "MEV Core",
+  "description": "Aplikasi mandiri MEV Core Engine di port 4100.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "icons": [
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any" },
+    { "src": "/favicon-32x32.png", "sizes": "32x32", "type": "image/png", "purpose": "any" }
+  ]
+}

@@ -11,6 +11,7 @@ export const OWNER_NODE_CHAIN_IDS = [
   "base",
   "bsc",
   "fantom",
+  "linea",
 ] as const;
 
 export type OwnerNodeChainId = (typeof OWNER_NODE_CHAIN_IDS)[number];

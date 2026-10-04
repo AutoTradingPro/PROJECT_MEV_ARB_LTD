@@ -204,7 +204,7 @@ export function priceFromQuote(
 
 /** Estimasi depth USD dari impact quote (semakin kecil impact → semakin dalam). */
 export function estimateLiquidityUsd(loanUsd: number, priceImpactPct: number): number {
-  const loan = Number.isFinite(loanUsd) && loanUsd > 0 ? loanUsd : 10_000;
+  const loan = Number.isFinite(loanUsd) && loanUsd > 0 ? loanUsd : 0;
   const impact = Number.isFinite(priceImpactPct) ? Math.abs(priceImpactPct) : 0;
   // Impact ~0 pada sample kecil → asumsikan depth sedang (bukan $50M palsu).
   if (impact < 0.01) {

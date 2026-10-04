@@ -1,5 +1,5 @@
 import { formatEther, parseEther, parseUnits } from "ethers";
-import { proportionalMinProfitAnchorUsd, resolveAdaptiveMinProfitUsd } from "@/lib/bot/adaptiveMinProfit";
+import { formatNetProfitSkip, resolveAdaptiveMinProfitUsd } from "@/lib/bot/adaptiveMinProfit";
 import { tokenWeiToUsd } from "@/lib/bot/configUnits";
 import { logSkipProfitBreakdown } from "@/lib/bot/skipProfitBreakdown";
 import type { Opportunity } from "@/lib/bot/types";
@@ -42,6 +42,11 @@ export interface ProfitCheckResult {
   minProfitWei: bigint;
   adaptiveMinUsd?: number;
   reason?: string;
+}
+
+/** Ambang profit bersih dari MIN_PROFIT_THRESHOLD (.env), dalam wei ETH. */
+export function readMinProfitThresholdWei(): bigint {
+  return envThresholdEth();
 }
 
 function envThresholdEth(): bigint {
@@ -137,28 +142,30 @@ export function validateAndExecuteArbitrage(input: ProfitCheckInput): ProfitChec
           decimals,
           quoteUsd
         );
+  const grossUsd = tokenWeiToUsd(quoteGross, decimals, quoteUsd);
+  const bribePct = Number(input.bribePct);
+  const bribeUsd =
+    Number.isFinite(bribePct) && bribePct > 0 ? Math.max(0, grossUsd) * (bribePct / 100) : 0;
   const adaptive = resolveAdaptiveMinProfitUsd({
-    configMinProfitUsd: proportionalMinProfitAnchorUsd(loanAmountUsd),
+    configMinProfitUsd: input.minProfitUsd,
     gasCostUsd,
-    bribePct: input.bribePct,
+    bribeUsd,
+    bribePct: Number.isFinite(bribePct) ? bribePct : 0,
     spreadBps: input.opportunity.spreadBps,
     minSpreadBps: input.minSpreadBps,
     extreme: input.extreme,
     loanAmountUsd,
   });
-
-  let minProfitThreshold = usdToEthWei(adaptive.minProfitUsd, ethUsd);
-  if (minProfitThreshold <= 0n) {
-    minProfitThreshold = envThresholdEth();
-  }
+  const netUsd = grossUsd - gasCostUsd - bribeUsd;
+  const minProfitThreshold = usdToEthWei(adaptive.minProfitUsd, ethUsd);
 
   console.log(
-    `[PROFIT CHECK] Gross: ${formatEther(grossProfit)} ETH | Gas Cost: ${formatEther(estimatedGasCost)} ETH | Net: ${formatEther(netProfit)} ETH | Min: ${formatEther(minProfitThreshold)} ETH ($${adaptive.minProfitUsd.toFixed(3)} = max(loan×0.60%,costFloor))`
+    `[PROFIT CHECK] Gross $${grossUsd.toFixed(3)} | Gas $${gasCostUsd.toFixed(3)} | Bribe $${bribeUsd.toFixed(3)} | Net $${netUsd.toFixed(3)} | Target $${adaptive.minProfitUsd.toFixed(3)} (loan×0.10%)`
   );
   console.log(`[PROFIT CHECK] ${adaptive.reason}`);
 
-  if (netProfit < minProfitThreshold) {
-    const skipReason = `${SKIP_PROFIT_TOO_SMALL} Profit bersih (${formatEther(netProfit)} ETH) di bawah ambang minProfitUsd $${adaptive.minProfitUsd.toFixed(3)} (max loan×0.60%/costFloor). Eksekusi dibatalkan untuk mencegah rugi/revert.`;
+  if (netUsd + 1e-9 < adaptive.minProfitUsd) {
+    const skipReason = formatNetProfitSkip(netUsd, adaptive.minProfitUsd);
     logSkipProfitBreakdown({
       opp: input.opportunity,
       config: {

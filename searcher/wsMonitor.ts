@@ -1,3 +1,5 @@
+import { watch } from "node:fs";
+import path from "node:path";
 import { WebSocketProvider } from "ethers";
 import {
   envArbitrumWsUrl,
@@ -5,11 +7,15 @@ import {
   envEthereumWsUrlFallback,
   envPolygonWsUrl,
   envPolygonWsUrlFallback,
+  isTradingChainId,
+  normalizeTradingChainId,
 } from "../config/networks";
-import { getBlockNumber, redactEndpoint, rpcErrorMessage, rpcUrl } from "../lib/bot/rpc";
-import { scanOpportunities } from "../lib/bot/scanner";
-import { tryServerAutonomousTick } from "../lib/bot/autonomousExecute";
-import { readBotState, writeBotState } from "../lib/bot/store";
+import { redactEndpoint, rpcErrorMessage } from "../lib/bot/rpc";
+import { readLiveChain, writeLiveChain, liveChainPath, type LiveChainTransport } from "../lib/bot/liveChain";
+import { appendServerLog } from "../lib/bot/serverLog";
+import { readBotState, updateConfig } from "../lib/bot/store";
+import { defaultDexIdsForChain } from "../lib/bot/dexRegistry";
+import { defaultPairForChain } from "../lib/chain/tokenPairs";
 import {
   markHealthyWss,
   uniqueUrls,
@@ -18,26 +24,21 @@ import {
 } from "../lib/owner/nodeEndpoints";
 import { getChain } from "../lib/chain/networks";
 import type { ChainId } from "../lib/chain/networks";
-import { normalizeTradingChainId } from "../config/networks";
-import {
-  maxOpportunitySpreadBps,
-  resolveAdaptiveScanIntervalMs,
-  formatAdaptiveScanPaceLine,
-  isScanIdlePace,
-} from "../lib/bot/autoExecute";
-import { SCAN_INTERVAL_MS } from "../lib/bot/constants";
 import { hardAdoptScanChain } from "../lib/bot/scanRuntime";
-import { isScanRpcAllowed, isWssAllowed } from "../lib/owner/chainQuota";
+import { isWssAllowed } from "../lib/owner/chainQuota";
 import { hydrateChainQuotaFromDisk } from "../lib/owner/chainQuotaPersist";
+import { OWNER_NODE_CHAIN_IDS } from "../lib/owner/ownerNodeChains";
+import { bindEventScanner, noteSearcherBlock } from "../scanner";
 
 const WSS_RETRY_MS = 12_000;
-let lastSearchScanAt = 0;
-let lastSearchIdlePace: boolean | null = null;
 let monitorChain: ChainId | null = null;
 let stopChainWss: (() => void) | null = null;
 
-function tradingChainFromState(chainId: string | undefined): ChainId {
-  return normalizeTradingChainId(chainId);
+function publishLiveSocket(chainId: ChainId, transport: LiveChainTransport, connected: boolean): void {
+  if (!isTradingChainId(chainId)) return;
+  const current = readLiveChain();
+  if (current?.locked && current.chainId !== chainId) return;
+  writeLiveChain({ chainId, transport, connected, locked: true });
 }
 
 function wssUrls(chainId: ChainId): string[] {
@@ -70,57 +71,6 @@ function wssUrls(chainId: ChainId): string[] {
   ]);
   if (env.length > 0) return env;
   return wssCandidates("bsc");
-}
-
-export async function tickScan(): Promise<void> {
-  const state = await readBotState();
-  if (state.killed) return;
-  const chainId = tradingChainFromState(state.config.chainId);
-  hydrateChainQuotaFromDisk();
-  hardAdoptScanChain(chainId, "searcher");
-  if (!isScanRpcAllowed(chainId)) return;
-  syncChainSockets(chainId);
-  const interval = resolveAdaptiveScanIntervalMs(
-    state.config.minSpreadPct,
-    maxOpportunitySpreadBps(state.opportunities)
-  );
-  const now = Date.now();
-  if (lastSearchScanAt > 0 && now - lastSearchScanAt < interval) return;
-  lastSearchScanAt = now;
-  try {
-    if (rpcUrl(chainId)) {
-      const block = await getBlockNumber(undefined, chainId);
-      await writeBotState({ ...state, lastBlock: block, lastError: undefined });
-    }
-    await scanOpportunities({
-      scanMode: state.config.scanMode === "full" ? "full" : "single",
-      pairIds:
-        state.config.scanMode === "full"
-          ? undefined
-          : state.config.pairId
-            ? [state.config.pairId]
-            : undefined,
-    });
-    const latest = await readBotState();
-    const maxSpreadBps = maxOpportunitySpreadBps(latest.opportunities);
-    const nextInterval = resolveAdaptiveScanIntervalMs(latest.config.minSpreadPct, maxSpreadBps);
-    const idle = isScanIdlePace(latest.config.minSpreadPct, maxSpreadBps);
-    if (lastSearchIdlePace !== idle) {
-      lastSearchIdlePace = idle;
-      console.log(
-        formatAdaptiveScanPaceLine({
-          minSpreadPct: latest.config.minSpreadPct,
-          maxSpreadBps,
-          intervalMs: nextInterval,
-        })
-      );
-    }
-    await tryServerAutonomousTick();
-  } catch (error) {
-    if ((error as { name?: string })?.name === "ScanRuntimeAbortError") return;
-    const message = error instanceof Error ? error.message : "scan gagal";
-    await writeBotState({ ...(await readBotState()), lastError: message });
-  }
 }
 
 type SocketLike = {
@@ -165,21 +115,16 @@ function attachSocketGuards(provider: WebSocketProvider, onDead: (reason: string
   }
 }
 
-function startAdaptiveHttpLoop(): void {
-  const loop = async () => {
-    await tickScan();
-    const latest = await readBotState();
-    const wait = resolveAdaptiveScanIntervalMs(
-      latest.config.minSpreadPct,
-      maxOpportunitySpreadBps(latest.opportunities)
-    );
-    setTimeout(() => void loop(), wait);
-  };
-  void loop();
+function chainWithLiveWss(preferred: ChainId): ChainId {
+  hydrateChainQuotaFromDisk();
+  if (isWssAllowed(preferred)) return preferred;
+  const enabled = OWNER_NODE_CHAIN_IDS.find((id) => isWssAllowed(id as ChainId));
+  return (enabled as ChainId | undefined) || preferred;
 }
 
 function syncChainSockets(chainId: ChainId): void {
   if (!isWssAllowed(chainId)) {
+    console.warn(`[searcher] WSS ${chainId} tidak dibuka · feed atau RPC node mati di kuota`);
     if (stopChainWss) {
       console.warn(`[searcher] quota · putus WSS ${monitorChain || chainId}`);
       stopChainWss();
@@ -194,7 +139,6 @@ function syncChainSockets(chainId: ChainId): void {
     stopChainWss();
     stopChainWss = null;
   }
-  lastSearchIdlePace = null;
   monitorChain = chainId;
   stopChainWss = attachChainWss(chainId);
 }
@@ -205,16 +149,12 @@ function attachChainWss(chainId: ChainId): () => void {
   let stopped = false;
   let active: WebSocketProvider | null = null;
   let connecting = false;
-  let httpTimer: ReturnType<typeof setTimeout> | null = null;
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
-
-  const stopHttpScan = () => {
-    if (!httpTimer) return;
-    clearTimeout(httpTimer);
-    httpTimer = null;
-  };
+  let unbindScanner: (() => void) | null = null;
 
   const destroyActive = () => {
+    unbindScanner?.();
+    unbindScanner = null;
     const current = active;
     active = null;
     if (!current) return;
@@ -245,12 +185,11 @@ function attachChainWss(chainId: ChainId): () => void {
     connecting = false;
     if (retryTimer) clearTimeout(retryTimer);
     retryTimer = null;
-    stopHttpScan();
     destroyActive();
   };
 
   if (urls.length === 0) {
-    console.warn(`[searcher] WSS ${chainId} kosong — tetap pakai scan HTTP adaptif`);
+    console.warn(`[searcher] WSS ${chainId} kosong — scan event tidak dijalankan tanpa soket`);
     return teardown;
   }
 
@@ -260,22 +199,9 @@ function attachChainWss(chainId: ChainId): () => void {
     }`
   );
 
-  const ensureHttpScan = (reason: string) => {
-    if (stopped || httpTimer) return;
-    console.warn(
-      `[searcher] ${reason} — fallback HTTP adaptif (1000 ms / 100–200 ms). Scanning tetap berjalan.`
-    );
-    const loop = async () => {
-      if (!httpTimer || stopped) return;
-      await tickScan();
-      const latest = await readBotState();
-      const wait = resolveAdaptiveScanIntervalMs(
-        latest.config.minSpreadPct,
-        maxOpportunitySpreadBps(latest.opportunities)
-      );
-      httpTimer = setTimeout(() => void loop(), wait);
-    };
-    httpTimer = setTimeout(() => void loop(), SCAN_INTERVAL_MS);
+  const noteWssDown = (reason: string) => {
+    publishLiveSocket(chainId, "none", false);
+    console.warn(`[searcher] ${reason} — tidak ada polling harga. Scan lanjut setelah WSS hidup.`);
   };
 
   const connectAt = async (index: number): Promise<boolean> => {
@@ -294,19 +220,21 @@ function attachChainWss(chainId: ChainId): () => void {
         return false;
       }
       active = provider;
+      unbindScanner?.();
+      unbindScanner = bindEventScanner(provider, chainId);
       attachSocketGuards(provider, (reason) => {
         if (stopped) return;
         console.warn(`[searcher] ${role} WSS gagal: ${reason}`);
         void failover(index, reason);
       });
-      provider.on("block", () => {
+      provider.on("block", (blockNumber: number) => {
         if (stopped) return;
-        void tickScan();
+        noteSearcherBlock(blockNumber, chainId);
       });
       markHealthyWss(chainId, url);
-      stopHttpScan();
+      publishLiveSocket(chainId, index === 0 ? "primary" : "backup", true);
       console.log(
-        `[searcher] WebSocket ${role} aktif (${redactEndpoint(url)}) · scan HTTP adaptif tetap jalan`
+        `[searcher] WebSocket ${role} aktif (${redactEndpoint(url)}) · cadangan pool lewat log Sync/Swap`
       );
       return true;
     } catch (error) {
@@ -319,7 +247,7 @@ function attachChainWss(chainId: ChainId): () => void {
     if (stopped || connecting) return;
     connecting = true;
     destroyActive();
-    ensureHttpScan(reason);
+    noteWssDown(reason);
 
     for (let index = fromIndex + 1; index < urls.length; index += 1) {
       const role = index === 0 ? "Primary" : "Cadangan";
@@ -330,7 +258,7 @@ function attachChainWss(chainId: ChainId): () => void {
       }
     }
 
-    console.error("[searcher] semua WSS gagal. HTTP scan tetap jalan, akan coba ulang WSS.");
+    console.error("[searcher] semua WSS gagal. Scan harga berhenti sampai soket tersambung lagi.");
     connecting = false;
     if (retryTimer) clearTimeout(retryTimer);
     retryTimer = setTimeout(() => {
@@ -349,7 +277,7 @@ function attachChainWss(chainId: ChainId): () => void {
       }
     }
     connecting = false;
-    ensureHttpScan("ulang WSS masih gagal");
+    noteWssDown("ulang WSS masih gagal");
     if (retryTimer) clearTimeout(retryTimer);
     retryTimer = setTimeout(() => {
       void reconnectFromPrimary();
@@ -367,7 +295,7 @@ function attachChainWss(chainId: ChainId): () => void {
       }
     }
     if (stopped) return;
-    ensureHttpScan("WSS Primary dan Cadangan tidak aktif");
+    noteWssDown("WSS Primary dan Cadangan tidak aktif");
     retryTimer = setTimeout(() => {
       void reconnectFromPrimary();
     }, WSS_RETRY_MS);
@@ -376,17 +304,90 @@ function attachChainWss(chainId: ChainId): () => void {
   return teardown;
 }
 
+let followedLock: ChainId | null = null;
+
+function followSelectedChain(chainId: ChainId, reason: string): void {
+  hydrateChainQuotaFromDisk();
+  const sameSocket = monitorChain === chainId && (Boolean(stopChainWss) || !isWssAllowed(chainId));
+  if (sameSocket) return;
+  if (monitorChain && monitorChain !== chainId) {
+    appendServerLog({
+      level: "scan",
+      source: "CHAIN",
+      chainId,
+      message: `Jaringan aktif beralih ke ${chainId}.`,
+    });
+  }
+  hardAdoptScanChain(chainId, reason);
+  syncChainSockets(chainId);
+}
+
+function authorityChain(): ChainId {
+  const live = readLiveChain();
+  if (live?.locked && live.source === "manual" && isTradingChainId(live.chainId)) return live.chainId;
+  return "arbitrum";
+}
+
 export function startReserveMonitor(): void {
-  console.log(
-    "[searcher] scan HTTP adaptif: 1000 ms jika max spread < min−0.1% / belum > setting, else 100–200 ms · Strict Single-Chain"
-  );
-  startAdaptiveHttpLoop();
-  void readBotState().then((state) => {
-    const chainId = tradingChainFromState(state.config.chainId);
-    hardAdoptScanChain(chainId, "searcher-boot");
-    syncChainSockets(chainId);
+  console.log("[searcher] mode event: WSS block + log Sync/Swap · tanpa polling getReserves");
+  void readBotState().then(async (state) => {
+    const preferred = authorityChain();
+    if (isTradingChainId(preferred) && normalizeTradingChainId(state.config.chainId) !== preferred) {
+      await updateConfig({
+        chainId: preferred,
+        pairId: defaultPairForChain(preferred).id,
+        activeDexIds: defaultDexIdsForChain(preferred),
+      });
+    }
+    hardAdoptScanChain(preferred, "searcher-boot");
+    hydrateChainQuotaFromDisk();
+    const chainId = isWssAllowed(preferred) ? preferred : chainWithLiveWss(preferred);
+    followedLock = chainId;
+    if (isTradingChainId(chainId) && chainId === preferred) {
+      const previous = readLiveChain();
+      writeLiveChain({
+        chainId,
+        locked: true,
+        connected: false,
+        transport: previous?.chainId === chainId ? previous.transport : "none",
+        source: "manual",
+      });
+    }
+    followSelectedChain(chainId, "searcher-boot");
     console.log(
       `[searcher] gas strategy=${state.config.gasStrategyMode} live-network (tanpa plafon gwei) · chain=${chainId}`
     );
+  });
+
+  let applyTimer: ReturnType<typeof setTimeout> | undefined;
+  let healTimer: ReturnType<typeof setTimeout> | undefined;
+  watch(path.dirname(liveChainPath()), (_event, filename) => {
+    if (filename === "bot-state.json") {
+      if (healTimer) clearTimeout(healTimer);
+      healTimer = setTimeout(() => {
+        const live = readLiveChain();
+        if (!live?.locked || live.source !== "manual" || !isTradingChainId(live.chainId)) return;
+        void readBotState().then(async (state) => {
+          if (normalizeTradingChainId(state.config.chainId) === live.chainId) return;
+          console.warn(`[searcher] config disk ${state.config.chainId} ditolak · kunci tetap ${live.chainId}`);
+          await updateConfig({
+            chainId: live.chainId,
+            pairId: defaultPairForChain(live.chainId).id,
+            activeDexIds: defaultDexIdsForChain(live.chainId),
+          });
+        });
+      }, 200);
+      return;
+    }
+    if (filename && filename !== path.basename(liveChainPath())) return;
+    if (applyTimer) clearTimeout(applyTimer);
+    applyTimer = setTimeout(() => {
+      const live = readLiveChain();
+      if (!live?.locked || live.source !== "manual" || !isTradingChainId(live.chainId)) return;
+      if (live.chainId === followedLock && monitorChain === live.chainId) return;
+      followedLock = live.chainId;
+      console.warn(`[searcher] kunci jaringan ${live.chainId}`);
+      followSelectedChain(live.chainId, "user-lock");
+    }, 200);
   });
 }

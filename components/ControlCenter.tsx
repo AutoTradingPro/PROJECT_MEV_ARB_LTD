@@ -27,6 +27,7 @@ import { hasActiveFlashLoanProvider, pickLivePoolFeePct, syncFlashLoanPlatformsT
 import { orderOpportunitiesByPairList } from "@/lib/bot/opportunityOrder";
 import { stableWeiToUsd } from "@/lib/bot/configUnits";
 import { extractTxHash, explorerTxUrl, shortenTxHash } from "@/lib/chain/explorer";
+import { defaultPairForChain } from "@/lib/chain/tokenPairs";
 import { formatOpportunityNet } from "@/lib/bot/bnbQuote";
 import { buildTradeTraceSnapshot } from "@/lib/bot/transactionTrace";
 import type { BotConfig, BotState, Opportunity } from "@/lib/bot/types";
@@ -126,7 +127,7 @@ function pushExecFailure(
 export default function ControlCenter() {
   const { isFree, isPro, scannerEnabled, setScannerEnabled, proScanMode, setProScanMode } = useTier();
   const { isScanOnly, botMode } = useBotMode();
-  const { chain, chainId, pair, pairId, availablePairs, setPairId, activeNetwork, hydrated } = useNetwork();
+  const { chain, chainId, setChainId, pair, pairId, availablePairs, setPairId, activeNetwork, hydrated } = useNetwork();
   const {
     isSandbox,
     vaultUsd,
@@ -231,6 +232,10 @@ export default function ControlCenter() {
     activeChainId: chainId,
   });
 
+  const applyingLiveChain = useRef(false);
+  const chainIdRef = useRef(chainId);
+  chainIdRef.current = chainId;
+
   const refresh = useCallback(async () => {
     if (sandboxRef.current) return null;
     try {
@@ -240,14 +245,19 @@ export default function ControlCenter() {
       });
       const text = await res.text();
       if (!res.ok || !text) return null;
-      let json: BotState;
+      let json: BotState & { liveChain?: { chainId?: string; locked?: boolean } };
       try {
-        json = JSON.parse(text) as BotState;
+        json = JSON.parse(text) as BotState & { liveChain?: { chainId?: string; locked?: boolean } };
       } catch {
         return null;
       }
       if (sandboxRef.current) return json;
-      const incomingChain = normalizeTradingChainId(json.config?.chainId);
+      const liveId = json.liveChain?.chainId;
+      if (isTradingChainId(liveId) && liveId !== chainIdRef.current) {
+        applyingLiveChain.current = true;
+        setChainId(liveId);
+      }
+      const incomingChain = normalizeTradingChainId(json.liveChain?.chainId || json.config?.chainId);
       setState((current) => {
         const uiChain = normalizeTradingChainId(current.config.chainId);
         if (incomingChain !== uiChain) {
@@ -267,7 +277,7 @@ export default function ControlCenter() {
     } catch {
       return null;
     }
-  }, []);
+  }, [setChainId]);
 
   useEffect(() => {
     if (isSandbox) return;
@@ -571,6 +581,17 @@ export default function ControlCenter() {
   useEffect(() => {
     if (!hydrated) return;
     const trading = isTradingChainId(chainId) ? chainId : "bsc";
+    if (applyingLiveChain.current) {
+      applyingLiveChain.current = false;
+      lastTradingChain.current = trading;
+      patchConfig({
+        chainId: trading,
+        pairId: defaultPairForChain(trading).id,
+        flashLoanPlatforms: syncFlashLoanPlatformsToChain(configRef.current.flashLoanPlatforms, trading),
+        activeDexIds: defaultDexIdsForChain(trading),
+      });
+      return;
+    }
     const switched = lastTradingChain.current !== null && lastTradingChain.current !== trading;
     const firstLock = lastTradingChain.current === null;
     lastTradingChain.current = trading;
@@ -580,47 +601,46 @@ export default function ControlCenter() {
       flashLoanPlatforms: syncFlashLoanPlatformsToChain(configRef.current.flashLoanPlatforms, trading),
       ...(switched ? { activeDexIds: defaultDexIdsForChain(trading) } : {}),
     });
+    if (firstLock || !switched) return;
     let cancelled = false;
-    const boot = async () => {
-      if (switched || firstLock) {
-        scanAbortRef.current?.abort();
-        scanEpochRef.current += 1;
-        scanInFlight.current = false;
-        lastSignerLine.current = "";
-        scanIdlePace.current = null;
-        scanIntervalMs.current = SCAN_IDLE_INTERVAL_MS;
-        setScanPaceMs(SCAN_IDLE_INTERVAL_MS);
-        lastAutoScan.current = 0;
-        clearTerminal();
-        setState((current) => ({
-          ...current,
-          opportunities: [],
-          lastBlock: 0,
-          gasPriceWei: "0",
-          lastError: undefined,
-        }));
-        try {
-          await fetch("/api/bot", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-              action: "adopt-chain",
-              config: { chainId: trading, pairId },
-            }),
-          });
-        } catch {
-          /* ganti rantai tetap dilanjutkan di klien */
-        }
+    const commitManualChain = async () => {
+      scanAbortRef.current?.abort();
+      scanEpochRef.current += 1;
+      scanInFlight.current = false;
+      lastSignerLine.current = "";
+      scanIdlePace.current = null;
+      scanIntervalMs.current = SCAN_IDLE_INTERVAL_MS;
+      setScanPaceMs(SCAN_IDLE_INTERVAL_MS);
+      lastAutoScan.current = 0;
+      clearTerminal();
+      setState((current) => ({
+        ...current,
+        opportunities: [],
+        lastBlock: 0,
+        gasPriceWei: "0",
+        lastError: undefined,
+      }));
+      try {
+        await fetch("/api/bot", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            action: "adopt-chain",
+            manual: true,
+            config: { chainId: trading, pairId: defaultPairForChain(trading).id },
+          }),
+        });
+      } catch {
+        /* klik jaringan tetap tampil di UI; soket menyusul lewat file kunci */
       }
-      if (cancelled) return;
-      if (isSandbox && isPro) return;
+      if (cancelled || (isSandbox && isPro)) return;
       void runScan({ silent: isFree });
     };
-    void boot();
+    void commitManualChain();
     return () => {
       cancelled = true;
     };
-  }, [chainId, hydrated, isFree, isSandbox, patchConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [chainId, hydrated, isFree, isSandbox, isPro, patchConfig, runScan, setScanPaceMs]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -931,6 +951,11 @@ export default function ControlCenter() {
           email: authUser?.email,
           wallet: walletAddress,
           config: execConfig,
+          chainId,
+          quoteDecimals: opp.quoteDecimals,
+          quoteUsd: opp.quoteUsd,
+          minProfitUsd: execConfig.minProfitUsd,
+          minerTipPct: execConfig.minerTipPct ?? execConfig.dynamicBribePercent,
           trace: buildTradeTraceSnapshot({
             opportunity: opp,
             txHash,

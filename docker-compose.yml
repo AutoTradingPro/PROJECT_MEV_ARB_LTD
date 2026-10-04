@@ -1,0 +1,23 @@
+services:
+  dashboard:
+    build: .
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env.local
+    volumes:
+      - ./.env.local:/app/.env.local
+      - ./data:/app/data
+    restart: unless-stopped
+
+  searcher:
+    build: .
+    command: npm run searcher
+    env_file:
+      - .env.local
+    volumes:
+      - ./.env.local:/app/.env.local
+      - ./data:/app/data
+    restart: unless-stopped
+    depends_on:
+      - dashboard

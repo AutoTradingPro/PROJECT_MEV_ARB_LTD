@@ -20,6 +20,7 @@ import { getChain, resolveChainRpc, type ChainId } from "@/lib/chain/networks";
 import { formatWalletError } from "@/lib/wallet/rpcError";
 import { getWalletChainIdHex, parseChainIdHex, switchWalletChain } from "@/lib/wallet/provider";
 import { ERC20_ABI, ERC20_LEGACY_ABI, VAULT_ABI } from "@/lib/vault/abi";
+import { emptyPlanMessage, planWithdraw, readExecutorSelectors } from "@/lib/vault/withdrawPlan";
 import {
   ARBITRUM_EVM_CHAIN_ID,
   BSC_EVM_CHAIN_ID,
@@ -168,6 +169,7 @@ function extractRevertHex(error: unknown): string | null {
 
 function mapCustomError(name: string, signature: string): string {
   switch (name) {
+    case "OwnableUnauthorizedAccount":
     case "NotOwner":
       return `On-chain revert: ${signature} — dompet yang terhubung bukan owner kontrak. Hubungkan wallet yang mendeploy/memiliki executor.`;
     case "NativeTransferFailed":
@@ -392,29 +394,6 @@ export function parseAssetAmount(amount: string, asset: VaultAsset, tokenDecimal
 
 function isContractDeployer(address: string): boolean {
   return address.toLowerCase() === CONTRACT_DEPLOYER_ADDRESS.toLowerCase();
-}
-
-function encodeRescueFunds(
-  tokenArg: string,
-  amountWei: bigint,
-  chain: "bsc" | "arbitrum"
-): { method: string; data: string } {
-  if (chain === "arbitrum") {
-    if (tokenArg === ZeroAddress) {
-      return {
-        method: "rescueETH()",
-        data: EXECUTOR_IFACE.encodeFunctionData("rescueETH", []),
-      };
-    }
-    return {
-      method: "rescueFunds(address,uint256)",
-      data: EXECUTOR_IFACE.encodeFunctionData("rescueFunds(address,uint256)", [tokenArg, amountWei]),
-    };
-  }
-  return {
-    method: "rescueFunds(address)",
-    data: EXECUTOR_IFACE.encodeFunctionData("rescueFunds(address)", [tokenArg]),
-  };
 }
 
 function decimalsForAsset(asset: VaultAsset, balances?: VaultBalances | null, chainId?: string): number {
@@ -712,36 +691,20 @@ export async function withdrawFromVault(input: {
     }
 
     const dest = input.ownerAddress || signerAddr;
-    const tokenArg = native ? ZeroAddress : tokenAddr;
     const pullAll = !trimmed || amountWei >= available;
-    const rescueAmount = pullAll ? available : amountWei;
+    const selectors = await readExecutorSelectors(provider, input.vaultAddress);
+    const plan = planWithdraw({
+      selectors,
+      chain,
+      native,
+      pullAll,
+      token: tokenAddr,
+      amount: amountWei,
+      available,
+      dest,
+    });
+    if (plan.length === 0) throw new Error(emptyPlanMessage({ native, pullAll, selectors, chain }));
 
-    const encodeWithdraw = (): { method: string; data: string } => {
-      if (chain === "arbitrum") {
-        return encodeRescueFunds(tokenArg, rescueAmount, chain);
-      }
-      if (pullAll) {
-        EXECUTOR_IFACE.getFunction("emergencyWithdraw");
-        return {
-          method: "emergencyWithdraw(address,address)",
-          data: EXECUTOR_IFACE.encodeFunctionData("emergencyWithdraw", [tokenArg, dest]),
-        };
-      }
-      if (native) {
-        EXECUTOR_IFACE.getFunction("withdraw");
-        return {
-          method: "withdraw(uint256)",
-          data: EXECUTOR_IFACE.encodeFunctionData("withdraw", [amountWei]),
-        };
-      }
-      EXECUTOR_IFACE.getFunction("withdrawToken");
-      return {
-        method: "withdrawToken(address,uint256)",
-        data: EXECUTOR_IFACE.encodeFunctionData("withdrawToken", [tokenAddr, amountWei]),
-      };
-    };
-
-    let encoded = encodeWithdraw();
     console.log("[vault] withdraw siap", {
       chain,
       expected,
@@ -753,60 +716,47 @@ export async function withdrawFromVault(input: {
       amount: trimmed || "(seluruh sisa)",
       amountWei: pullAll ? available.toString() : amountWei.toString(),
       available: available.toString(),
-      method: encoded.method,
+      abiDetected: selectors !== null,
+      plan: plan.map((c) => c.method),
     });
 
     const withdrawAmountLog = pullAll ? `${have} ${symbol} (seluruh sisa)` : `${trimmed} ${symbol}`;
 
-    try {
-      await preflightCall({
-        provider,
-        from: signerAddr,
-        to: input.vaultAddress,
-        data: encoded.data,
-        amount: withdrawAmountLog,
-        method: encoded.method,
-      });
-    } catch (preflightError) {
-      console.warn("[vault] penarikan utama gagal preflight, fallback rescue", preflightError);
-      encoded = encodeRescueFunds(tokenArg, rescueAmount, chain);
-      await preflightCall({
-        provider,
-        from: signerAddr,
-        to: input.vaultAddress,
-        data: encoded.data,
-        amount: withdrawAmountLog,
-        method: encoded.method,
-      });
+    // Each candidate must pass eth_call first; after a failed send only one more candidate is tried
+    // so a flaky wallet/RPC cannot trigger a chain of transactions.
+    let lastError: unknown = null;
+    let sends = 0;
+    for (const encoded of plan) {
+      try {
+        await preflightCall({
+          provider,
+          from: signerAddr,
+          to: input.vaultAddress,
+          data: encoded.data,
+          amount: withdrawAmountLog,
+          method: encoded.method,
+        });
+      } catch (preflightError) {
+        console.warn(`[vault] ${encoded.method} gagal preflight, coba kandidat berikutnya`, preflightError);
+        lastError = preflightError;
+        continue;
+      }
+      try {
+        sends += 1;
+        return await sendExecutorCall({
+          signer,
+          to: input.vaultAddress,
+          data: encoded.data,
+          method: encoded.method,
+        });
+      } catch (sendError) {
+        if (isUserRejected(sendError)) throw sendError;
+        console.warn(`[vault] ${encoded.method} gagal dikirim`, sendError);
+        lastError = sendError;
+        if (sends >= 2) break;
+      }
     }
-
-    try {
-      return await sendExecutorCall({
-        signer,
-        to: input.vaultAddress,
-        data: encoded.data,
-        method: encoded.method,
-      });
-    } catch (sendError) {
-      if (isUserRejected(sendError)) throw sendError;
-      if (encoded.method.startsWith("rescueFunds") || encoded.method === "rescueETH()") throw sendError;
-      console.warn("[vault] sendTransaction utama gagal, fallback rescue", sendError);
-      encoded = encodeRescueFunds(tokenArg, rescueAmount, chain);
-      await preflightCall({
-        provider,
-        from: signerAddr,
-        to: input.vaultAddress,
-        data: encoded.data,
-        amount: withdrawAmountLog,
-        method: encoded.method,
-      });
-      return await sendExecutorCall({
-        signer,
-        to: input.vaultAddress,
-        data: encoded.data,
-        method: encoded.method,
-      });
-    }
+    throw lastError instanceof Error ? lastError : new Error(formatVaultError(lastError));
   } catch (error) {
     console.error("[vault] withdrawFromVault", error);
     throw error;

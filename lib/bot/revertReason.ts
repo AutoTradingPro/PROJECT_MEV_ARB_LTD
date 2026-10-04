@@ -305,7 +305,7 @@ export function formatConfigSnapshot(config?: {
 } | null): string {
   const bribe = config?.dynamicBribePercent ?? config?.minerTipPct ?? 0;
   const bundle = config?.useBundle !== false ? "bundle" : "public";
-  return `[CONFIG SNAPSHOT] loan=${compactUsd(config?.loanAmountUsd ?? 0)} · minProfit=max(loan×0.60%,costFloor) (${compactUsd(config?.minProfitUsd ?? 0)}) · slippage=adaptif 0.5%–1.0% · bribe=${compactPct(bribe)} · minSpread=${compactPct(config?.minSpreadPct ?? 0)} · minLiq=${compactUsd(config?.minPoolLiquidityUsd ?? 100000)} · exec=${bundle}`;
+  return `[CONFIG SNAPSHOT] loan=2% likuiditas pool · minProfit=loan×0.10% · slippage=adaptif 0.5%–1.0% · bribe=${compactPct(bribe)} · minSpread=${compactPct(config?.minSpreadPct ?? 0)} · minLiq=${compactUsd(config?.minPoolLiquidityUsd ?? 100000)} · exec=${bundle}`;
 }
 
 export function isExecRevertFailure(raw: string): boolean {

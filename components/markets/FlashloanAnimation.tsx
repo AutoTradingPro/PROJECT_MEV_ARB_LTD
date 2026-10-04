@@ -83,10 +83,10 @@ function FlashloanFlowFallback() {
           />
         </circle>
 
-        <FlowNode x="120" y="270" label="Vault" sub="USDT" color="#38bdf8" />
-        <FlowNode x="340" y="180" label="Flashloan" sub="Pinjam" color="#fbbf24" />
-        <FlowNode x="540" y="360" label="DEX A → B" sub="Arbitrage" color="#818cf8" />
-        <FlowNode x="840" y="270" label="Repay +" sub="Profit" color="#34d399" />
+        <FlowNode x={120} y={270} label="Vault" sub="USDT" color="#38bdf8" />
+        <FlowNode x={340} y={180} label="Flashloan" sub="Pinjam" color="#fbbf24" />
+        <FlowNode x={540} y={360} label="DEX A → B" sub="Arbitrage" color="#818cf8" />
+        <FlowNode x={840} y={270} label="Repay +" sub="Profit" color="#34d399" />
       </svg>
     </div>
   );

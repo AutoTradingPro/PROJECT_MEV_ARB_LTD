@@ -1,4 +1,6 @@
 import "./loadEnv";
+import { watchRuntimeBotMode } from "@/lib/bot/botModeRuntime";
+import { ensureLiveHub } from "@/lib/bot/liveHub";
 import { startReserveMonitor } from "./wsMonitor";
 
 function isBenignWsShutdown(reason: unknown): boolean {
@@ -18,5 +20,7 @@ process.on("uncaughtException", (error) => {
   console.error("[searcher] uncaughtException:", error instanceof Error ? error.message : String(error));
 });
 
+ensureLiveHub();
+watchRuntimeBotMode();
 startReserveMonitor();
 console.log("[searcher] monitor cadangan DEX dimulai");

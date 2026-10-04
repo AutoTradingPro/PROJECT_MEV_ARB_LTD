@@ -15,6 +15,14 @@ import type { BotMode } from "@/lib/scanOnly/types";
 
 const STORAGE_KEY = "mev-arb-bot-mode";
 
+function publishBotMode(mode: BotMode) {
+  void fetch("/api/config/toggle-execute", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ botMode: mode }),
+  }).catch(() => undefined);
+}
+
 interface BotModeContextValue {
   botMode: BotMode;
   isScanOnly: boolean;
@@ -31,7 +39,9 @@ export function BotModeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) setBotModeState(normalizeBotMode(saved));
+      const mode = saved ? normalizeBotMode(saved) : normalizeBotMode(BOT_MODE);
+      if (saved) setBotModeState(mode);
+      publishBotMode(mode);
     } catch {
       /* ignore */
     }
@@ -46,6 +56,7 @@ export function BotModeProvider({ children }: { children: ReactNode }) {
     } catch {
       /* ignore */
     }
+    publishBotMode(mode);
   }, []);
 
   const value = useMemo(

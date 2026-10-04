@@ -1,9 +1,10 @@
 import { DEFAULT_BOT_CONFIG, DEX_ROUTES, dexLabel, resolveScanDexIds } from "@/lib/bot/constants";
 import { directedDexRoutes } from "@/lib/bot/dexDirections";
-import { proportionalMinProfitAnchorUsd } from "@/lib/bot/adaptiveMinProfit";
 import { nativeUsdPrice } from "@/lib/bot/bnbQuote";
-import { pctToBps, toEngineConfig, usdToStableWei } from "@/lib/bot/configUnits";
+import { toEngineConfig, usdToStableWei } from "@/lib/bot/configUnits";
 import { estimateTwoDexFlashArb } from "@/lib/bot/profitEngine";
+import { optimalFlashloanSize } from "@/src/engine/dynamicSizing";
+import { dexIsConcentrated } from "@/lib/bot/dexRegistry";
 import { isExtremeSpotSpread, spotSpreadBps } from "@/lib/bot/pricing";
 import { buildTradeTraceSnapshot } from "@/lib/bot/transactionTrace";
 import type { BotConfig, DexId, Opportunity, TradeRecord } from "@/lib/bot/types";
@@ -152,11 +153,8 @@ export function scanSandboxOpportunities(input: {
   const chainKey = (input.chainId || "polygon") as ChainId;
   const active = resolveScanDexIds(chainKey, config.activeDexIds);
 
-  const amountIn = BigInt(
-    usdToStableWei(Math.max(1, config.loanAmountUsd || DEFAULT_BOT_CONFIG.loanAmountUsd))
-  );
   const gasCostQuoteWei = quoteGasCostWei(SANDBOX_GAS_PRICE_WEI, BigInt(engine.gasLimit), chainKey);
-  const tvlUsd = Math.max(50_000_000, (config.loanAmountUsd || 10_000) * 400);
+  const tvlUsd = 50_000_000;
   const found: Opportunity[] = [];
 
   for (const pair of input.pairs) {
@@ -173,8 +171,21 @@ export function scanSandboxOpportunities(input: {
         const spreadBps = spotSpreadBps(priceDexAUsd, priceDexBUsd);
         if (isExtremeSpotSpread(spreadBps, SANDBOX_MAX_SPOT_SPREAD_BPS)) continue;
 
+        const dynamicSize = optimalFlashloanSize({
+          buyReserveQuote: buyPool.reserveQuote,
+          sellReserveQuote: sellPool.reserveQuote,
+          buyTvlUsd: tvlUsd,
+          sellTvlUsd: tvlUsd,
+          quoteDecimals: 18,
+          quoteUsd: 1,
+          concentrated: dexIsConcentrated(buyDex) || dexIsConcentrated(sellDex),
+        });
+        const amountIn = dynamicSize.amountInWei;
+        if (amountIn <= 0n) continue;
+
         const result = estimateTwoDexFlashArb({
           amountIn,
+          dynamicSize,
           buy: {
             reserveIn: buyPool.reserveQuote,
             reserveOut: buyPool.reserveBase,
@@ -192,19 +203,9 @@ export function scanSandboxOpportunities(input: {
           gasCostQuoteWei,
         });
 
-        const minSpreadBps = pctToBps(config.minSpreadPct);
-        const spreadQualified = spreadBps >= minSpreadBps;
-        let netProfit = result.netProfit;
-        let grossProfit = result.grossProfit;
-        if (spreadQualified && netProfit <= 0n) {
-          const loan = Math.max(1, config.loanAmountUsd || DEFAULT_BOT_CONFIG.loanAmountUsd);
-          const capturedUsd = Math.max(
-            proportionalMinProfitAnchorUsd(loan),
-            loan * (spreadBps / 10_000) * 0.4
-          );
-          netProfit = BigInt(usdToStableWei(capturedUsd));
-          grossProfit = netProfit + result.gasCost;
-        }
+        const netProfit = result.netProfit;
+        const grossProfit = result.grossProfit;
+        const ready = result.profitable;
 
         found.push({
           id: `sandbox-${pair.id}-${buyDex}-${sellDex}`,
@@ -232,11 +233,8 @@ export function scanSandboxOpportunities(input: {
           live: true,
           pairId: pair.id,
           chainId: input.chainId,
-          status: result.profitable || spreadQualified ? "ready" : "rejected",
-          reason:
-            result.profitable || spreadQualified
-              ? undefined
-              : result.rejectReason,
+          status: ready ? "ready" : "rejected",
+          reason: ready ? undefined : result.rejectReason,
           scanPoolFeePct: scanPoolFeePctFromBps(buyPool.feeBps),
           uniswapPoolFeePct: scanPoolFeePctFromBps(buyPool.feeBps),
           buyPoolFee: Number(buyPool.feeBps) * 100,
@@ -288,14 +286,6 @@ export function executeSandboxOpportunity(input: {
     profitWei = BigInt(opp.netProfitWei || "0");
   } catch {
     profitWei = 0n;
-  }
-  if (profitWei <= 0n && opp.spreadBps > 0) {
-    const loan = Math.max(1, input.config?.loanAmountUsd || DEFAULT_BOT_CONFIG.loanAmountUsd);
-    const capturedUsd = Math.max(
-      proportionalMinProfitAnchorUsd(loan),
-      loan * (opp.spreadBps / 10_000) * 0.4
-    );
-    profitWei = BigInt(usdToStableWei(capturedUsd));
   }
   const txHash = mockTxHash();
   const now = Date.now();

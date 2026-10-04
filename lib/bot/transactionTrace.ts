@@ -1,5 +1,6 @@
 import { formatBnbAmount, formatStableWeiAsBnb, formatUsdAsBnb, MOCK_BNB_USD } from "@/lib/bot/bnbQuote";
 import { aaveFeePctForTier, DEFAULT_BOT_CONFIG } from "@/lib/bot/constants";
+import { bestFlashloanForTradingChain, feePpmToPct } from "@/src/flashloan/globalProviderSelector";
 import { formatPct, formatUsd, stableWeiToUsd, usdToStableWei } from "@/lib/bot/configUnits";
 import type { BotConfig, Opportunity, TradeRecord, TradeTraceSnapshot } from "@/lib/bot/types";
 
@@ -156,8 +157,15 @@ export function buildTradeTraceSnapshot(input: {
   const tokens = splitPair(pair);
   const dex = splitRoute(route);
   const seed = input.txHash || `${pair}:${route}:${input.blockNumber}`;
-  const aaveFeePct =
-    typeof config.aaveFeePct === "number" ? config.aaveFeePct : aaveFeePctForTier(Boolean(input.isPro));
+  const bestFlash = bestFlashloanForTradingChain(config.chainId || opp?.chainId, {
+    poolFee: opp?.buyPoolFee,
+    poolFeePct: opp?.uniswapPoolFeePct ?? opp?.scanPoolFeePct,
+  });
+  const aaveFeePct = bestFlash
+    ? feePpmToPct(bestFlash.feePpm)
+    : typeof config.aaveFeePct === "number"
+      ? config.aaveFeePct
+      : aaveFeePctForTier(Boolean(input.isPro));
   const loanUsd = Math.max(1, config.loanAmountUsd || DEFAULT_BOT_CONFIG.loanAmountUsd);
   const loanAmountWei = parseWei(opp?.amountInWei, usdToStableWei(loanUsd));
   const loanUsdActual = stableWeiToUsd(loanAmountWei);
@@ -176,7 +184,13 @@ export function buildTradeTraceSnapshot(input: {
     durationMs,
     loanToken: opp?.tokenIn || tokens.quote,
     loanAmountWei,
-    providerLabel: input.isSandbox ? "Aave V3 Pool (Testnet)" : "Aave V3 Pool",
+    providerLabel: bestFlash
+      ? input.isSandbox
+        ? `${bestFlash.name} (Testnet)`
+        : bestFlash.name
+      : input.isSandbox
+        ? "Aave V3 Pool (Testnet)"
+        : "Aave V3 Pool",
     buyDex: opp?.buyExchange || dex.buy,
     sellDex: opp?.sellExchange || dex.sell,
     buyToken: opp?.tokenOut || tokens.base,

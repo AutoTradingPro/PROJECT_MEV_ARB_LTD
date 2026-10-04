@@ -15,7 +15,8 @@ export type TradingChainId =
   | "fantom"
   | "arbitrum"
   | "polygon"
-  | "ethereum";
+  | "ethereum"
+  | "linea";
 export type ScannerChainId = TradingChainId;
 export type NativeSymbol = "BNB" | "ETH" | "POL" | "AVAX" | "SOL" | "ATOM" | "FTM";
 
@@ -161,7 +162,7 @@ function preferBlockmachineWs(
 export function envBscRpcUrl(): string {
   return preferBlockmachineHttp(
     "bsc",
-    firstEnv("BSC_RPC_URL", "RPC_HTTP_URL_BSC", "RPC_HTTP_URL")
+    firstEnv("BLOCKPI_RPC_BSC", "BSC_RPC_URL", "RPC_HTTP_URL_BSC", "RPC_HTTP_URL")
   );
 }
 
@@ -186,7 +187,10 @@ export function envBscRpcUrlFallback(): string {
 }
 
 export function envBscWsUrl(): string {
-  return preferBlockmachineWs("bsc", firstEnv("BSC_WSS_URL", "RPC_WSS_URL_BSC", "RPC_WSS_URL"));
+  return preferBlockmachineWs(
+    "bsc",
+    firstEnv("ONFINALITY_WSS_BSC", "BSC_WSS_URL", "RPC_WSS_URL_BSC", "RPC_WSS_URL")
+  );
 }
 
 export function envBscWsUrlFallback(): string {
@@ -198,6 +202,7 @@ export function envArbitrumRpcUrl(): string {
   return preferBlockmachineHttp(
     "arbitrum",
     firstEnv(
+      "BLOCKPI_RPC_ARBITRUM",
       "ANKR_ARBITRUM_RPC_URL",
       "ARBI_RPC_URL",
       "ARBITRUM_RPC_URL",
@@ -216,7 +221,13 @@ export function envArbitrumRpcUrlFallback(): string {
 export function envArbitrumWsUrl(): string {
   return preferBlockmachineWs(
     "arbitrum",
-    firstEnv("ANKR_ARBITRUM_WSS_URL", "ARBI_WSS_URL", "ARBITRUM_WSS_URL", "RPC_WSS_URL_ARBITRUM")
+    firstEnv(
+      "ONFINALITY_WSS_ARBITRUM",
+      "ANKR_ARBITRUM_WSS_URL",
+      "ARBI_WSS_URL",
+      "ARBITRUM_WSS_URL",
+      "RPC_WSS_URL_ARBITRUM"
+    )
   );
 }
 
@@ -232,6 +243,7 @@ export function envPolygonRpcUrl(): string {
   return preferBlockmachineHttp(
     "polygon",
     firstEnv(
+      "BLOCKPI_RPC_POLYGON",
       "ANKR_POLYGON_RPC_URL",
       "POLY_RPC_URL",
       "POLYGON_RPC_URL",
@@ -252,6 +264,7 @@ export function envPolygonWsUrl(): string {
   return preferBlockmachineWs(
     "polygon",
     firstEnv(
+      "ONFINALITY_WSS_POLYGON",
       "ANKR_POLYGON_WSS_URL",
       "POLY_WSS_URL",
       "POLYGON_WSS_URL",
@@ -274,6 +287,7 @@ export function envEthereumRpcUrl(): string {
   return preferBlockmachineHttp(
     "ethereum",
     firstEnv(
+      "BLOCKPI_RPC_ETHEREUM",
       "ANKR_ETHEREUM_RPC_URL",
       "ETHE_RPC_URL",
       "ETHEREUM_RPC_URL",
@@ -294,6 +308,7 @@ export function envEthereumWsUrl(): string {
   return preferBlockmachineWs(
     "ethereum",
     firstEnv(
+      "ONFINALITY_WSS_ETHEREUM",
       "ANKR_ETHEREUM_WSS_URL",
       "ETHE_WSS_URL",
       "ETHEREUM_WSS_URL",
@@ -331,6 +346,7 @@ export function envSolanaRpcUrlFallback(): string {
 /** Server-only Solana WebSocket (Ankr primary). */
 export function envSolanaWsUrl(): string {
   return firstEnv(
+    "ONFINALITY_WSS_SOLANA",
     "ANKR_SOLANA_WSS_URL",
     "SOLANA_WS_URL",
     "SOLANA_WSS_URL",
@@ -373,7 +389,12 @@ export function envJupiterApiKey(): string {
 
 /** Server-only Optimism cadangan (Blockmachine rpc-optimism). */
 export function envOptimismRpcUrl(): string {
-  return firstEnv("OPTIMISM_RPC_URL", "RPC_HTTP_URL_OPTIMISM", "NEXT_PUBLIC_OPTIMISM_RPC_URL");
+  return firstEnv(
+    "BLOCKPI_RPC_OPTIMISM",
+    "OPTIMISM_RPC_URL",
+    "RPC_HTTP_URL_OPTIMISM",
+    "NEXT_PUBLIC_OPTIMISM_RPC_URL"
+  );
 }
 
 export function envOptimismRpcUrlFallback(): string {
@@ -384,7 +405,12 @@ export function envOptimismRpcUrlFallback(): string {
 }
 
 export function envOptimismWsUrl(): string {
-  return firstEnv("OPTIMISM_WSS_URL", "RPC_WSS_URL_OPTIMISM", "NEXT_PUBLIC_OPTIMISM_WS_URL");
+  return firstEnv(
+    "ONFINALITY_WSS_OPTIMISM",
+    "OPTIMISM_WSS_URL",
+    "RPC_WSS_URL_OPTIMISM",
+    "NEXT_PUBLIC_OPTIMISM_WS_URL"
+  );
 }
 
 export function envOptimismWsUrlFallback(): string {
@@ -396,7 +422,42 @@ export function envOptimismWsUrlFallback(): string {
 
 /** Server-only Avalanche cadangan (Blockmachine rpc-avalanche). */
 export function envAvalancheRpcUrl(): string {
-  return firstEnv("AVALANCHE_RPC_URL", "RPC_HTTP_URL_AVALANCHE", "NEXT_PUBLIC_AVALANCHE_RPC_URL");
+  return firstEnv(
+    "BLOCKPI_RPC_AVALANCHE",
+    "AVALANCHE_RPC_URL",
+    "RPC_HTTP_URL_AVALANCHE",
+    "NEXT_PUBLIC_AVALANCHE_RPC_URL"
+  );
+}
+
+/** Server-only Base HTTP. Primary = BlockPi. */
+export function envBaseRpcUrl(): string {
+  return firstEnv("BLOCKPI_RPC_BASE", "BASE_RPC_URL", "RPC_HTTP_URL_BASE");
+}
+
+/** Server-only Fantom HTTP. Primary = BlockPi. */
+export function envFantomRpcUrl(): string {
+  return firstEnv("BLOCKPI_RPC_FANTOM", "FANTOM_RPC_URL", "RPC_HTTP_URL_FANTOM");
+}
+
+/** Server-only Linea HTTP. Primary = BlockPi. */
+export function envLineaRpcUrl(): string {
+  return firstEnv("BLOCKPI_RPC_LINEA", "LINEA_RPC_URL", "RPC_HTTP_URL_LINEA");
+}
+
+/** WSS BlockPi dari URL HTTP yang sama (`/v1/rpc/` → `/v1/ws/`). */
+export function envLineaWsUrl(): string {
+  const http = envLineaRpcUrl();
+  if (!http) return "";
+  try {
+    const url = new URL(http);
+    if (!url.hostname.endsWith("blockpi.network")) return "";
+    url.protocol = "wss:";
+    url.pathname = url.pathname.replace("/v1/rpc/", "/v1/ws/");
+    return url.toString();
+  } catch {
+    return "";
+  }
 }
 
 export function envAvalancheRpcUrlFallback(): string {
@@ -407,7 +468,20 @@ export function envAvalancheRpcUrlFallback(): string {
 }
 
 export function envAvalancheWsUrl(): string {
-  return firstEnv("AVALANCHE_WSS_URL", "RPC_WSS_URL_AVALANCHE", "NEXT_PUBLIC_AVALANCHE_WS_URL");
+  return firstEnv(
+    "ONFINALITY_WSS_AVALANCHE",
+    "AVALANCHE_WSS_URL",
+    "RPC_WSS_URL_AVALANCHE",
+    "NEXT_PUBLIC_AVALANCHE_WS_URL"
+  );
+}
+
+export function envBaseWsUrl(): string {
+  return firstEnv("ONFINALITY_WSS_BASE", "BASE_WSS_URL", "RPC_WSS_URL_BASE");
+}
+
+export function envFantomWsUrl(): string {
+  return firstEnv("ONFINALITY_WSS_FANTOM", "FANTOM_WSS_URL", "RPC_WSS_URL_FANTOM");
 }
 
 export function envAvalancheWsUrlFallback(): string {
@@ -461,8 +535,11 @@ export const ETHEREUM_EXPLORER_TX = "https://etherscan.io/tx/";
 /** Vault Balancer V2 per EVM chain id (encode + deploy). */
 export const BALANCER_V2_VAULT_BY_CHAIN_ID: Record<number, string> = {
   1: BALANCER_V2_VAULT,
+  10: BALANCER_V2_VAULT,
   [POLYGON_CHAIN_ID]: POLYGON_BALANCER_VAULT,
+  8453: BALANCER_V2_VAULT,
   42161: BALANCER_V2_VAULT,
+  43114: BALANCER_V2_VAULT,
 };
 
 export function balancerVaultForChainId(evmChainId: number): string {
@@ -728,6 +805,26 @@ const AVALANCHE_PAIRS: TokenPairConfig[] = [
   pair({ id: "aave-wavax", label: "AAVE / WAVAX", baseSymbol: "AAVE", quoteSymbol: "WAVAX", baseIcon: ICONS.aave, quoteIcon: ICONS.avax, baseAddress: AVALANCHE_TOKENS.aave, quoteAddress: AVALANCHE_TOKENS.wavax, baseDecimals: 18, quoteDecimals: 18 }),
   pair({ id: "qi-wavax", label: "QI / WAVAX", baseSymbol: "QI", quoteSymbol: "WAVAX", baseIcon: ICONS.qi, quoteIcon: ICONS.avax, baseAddress: AVALANCHE_TOKENS.qi, quoteAddress: AVALANCHE_TOKENS.wavax, baseDecimals: 18, quoteDecimals: 18 }),
   pair({ id: "usdc-usdt-avax", label: "USDC / USDT", baseSymbol: "USDC", quoteSymbol: "USDT", baseIcon: ICONS.usdc, quoteIcon: ICONS.usdt, baseAddress: AVALANCHE_TOKENS.usdc, quoteAddress: AVALANCHE_TOKENS.usdt, baseDecimals: 6, quoteDecimals: 6 }),
+];
+
+export const LINEA_TOKENS = {
+  weth: "0xe5D7C2a44FfDDf6b295A15c148167daaAf5Cf34f",
+  usdc: "0x176211869cA2b568f2A7D4EE941E073a821EE1ff",
+} as const;
+
+const LINEA_PAIRS: TokenPairConfig[] = [
+  pair({
+    id: "weth-usdc-linea",
+    label: "WETH / USDC",
+    baseSymbol: "WETH",
+    quoteSymbol: "USDC",
+    baseIcon: ICONS.weth,
+    quoteIcon: ICONS.usdc,
+    baseAddress: LINEA_TOKENS.weth,
+    quoteAddress: LINEA_TOKENS.usdc,
+    baseDecimals: 18,
+    quoteDecimals: 6,
+  }),
 ];
 
 const FANTOM_PAIRS: TokenPairConfig[] = [
@@ -1030,6 +1127,21 @@ export const TRADING_NETWORKS: Record<TradingChainId, TradingNetworkConfig> = {
     wrappedNative: FANTOM_TOKENS.wftm,
     pairs: FANTOM_PAIRS,
   },
+  linea: {
+    id: "linea",
+    name: "Linea",
+    shortLabel: "Linea Mainnet",
+    chainId: 59144,
+    nativeSymbol: "ETH",
+    nativeCurrency: "ETH",
+    rpcUrl: "https://rpc.linea.build",
+    wsUrl: "wss://rpc.linea.build",
+    rpcUrlFallback: "https://rpc.linea.build",
+    wsUrlFallback: "wss://rpc.linea.build",
+    explorerTx: "https://lineascan.build/tx/",
+    wrappedNative: LINEA_TOKENS.weth,
+    pairs: LINEA_PAIRS,
+  },
 };
 
 /** Settings / header: BSC tetap tersedia di sini, bukan di switcher scanner. */
@@ -1058,6 +1170,7 @@ const TRADING_CHAIN_IDS: readonly TradingChainId[] = [
   "arbitrum",
   "polygon",
   "ethereum",
+  "linea",
 ];
 
 export function isTradingChainId(value: unknown): value is TradingChainId {
@@ -1124,6 +1237,7 @@ export function defaultTradingChainId(): TradingChainId {
   if (numeric === 43114) return "avalanche";
   if (numeric === 8453) return "base";
   if (numeric === 250) return "fantom";
+  if (numeric === 59144) return "linea";
   return "polygon";
 }
 

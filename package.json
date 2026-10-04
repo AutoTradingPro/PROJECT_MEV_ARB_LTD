@@ -12,25 +12,46 @@
     "deploy:balancer-arb:polygon": "npx tsx --env-file=.env.local script/deploy-balancer-flash-arb.ts --network polygon",
     "deploy:balancer-arb:ethereum": "npx tsx --env-file=.env.local script/deploy-balancer-flash-arb.ts --network ethereum",
     "deploy:balancer-arb:arbitrum": "npx tsx --env-file=.env.local script/deploy-balancer-flash-arb.ts --network arbitrum",
-    "test:vault": "forge test --match-path test/ArbitrumFlashArbExecutor.t.sol -vv"
+    "deploy:executors": "npx tsx --env-file=.env.local script/deploy-mev-executor.ts",
+    "deploy:executor:optimism": "npx tsx --env-file=.env.local script/deploy-mev-executor.ts --network optimism",
+    "deploy:executor:base": "npx tsx --env-file=.env.local script/deploy-mev-executor.ts --network base",
+    "deploy:executor:avalanche": "npx tsx --env-file=.env.local script/deploy-mev-executor.ts --network avalanche",
+    "deploy:executor:fantom": "npx tsx --env-file=.env.local script/deploy-mev-executor.ts --network fantom",
+    "deploy:executor:linea": "npx tsx --env-file=.env.local script/deploy-mev-executor.ts --network linea",
+    "test:vault": "forge test --match-path test/ArbitrumFlashArbExecutor.t.sol -vv",
+    "test:mev-executor": "forge test --match-path test/MevExecutor.t.sol -vv",
+    "vault:index": "tsx --env-file=.env.local script/vault-indexer.ts",
+    "verify:executors": "tsx script/verify-executor-activation.ts"
   },
   "dependencies": {
     "@reown/appkit": "^1.8.23",
     "@reown/appkit-adapter-wagmi": "^1.8.23",
     "@solana/web3.js": "^1.99.0",
     "@tanstack/react-query": "^5.102.8",
+    "@wagmi/connectors": "6.2.0",
+    "@wagmi/core": "2.22.1",
+    "@x402/core": "^2.27.0",
+    "@x402/evm": "^2.27.0",
+    "@x402/svm": "^2.27.0",
     "bs58": "^6.0.0",
     "ethers": "^6.15.0",
     "lucide-react": "^1.37.0",
     "next": "16.3.3",
+    "pg": "^8.23.1",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "viem": "^2.56.5",
-    "wagmi": "^2.19.5"
+    "wagmi": "2.19.5"
+  },
+  "overrides": {
+    "@wagmi/connectors": "6.2.0",
+    "@wagmi/core": "2.22.1",
+    "wagmi": "2.19.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",

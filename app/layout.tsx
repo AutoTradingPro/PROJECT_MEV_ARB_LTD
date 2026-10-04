@@ -18,6 +18,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "MEV ARB Control Portal",
   description: "Dashboard flashloan arbitrage lintas DEX",
+  applicationName: "MEV ARB",
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },

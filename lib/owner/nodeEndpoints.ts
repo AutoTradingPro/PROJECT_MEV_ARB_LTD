@@ -7,6 +7,12 @@ import {
   envArbitrumWsUrlFallback,
   envAvalancheRpcUrl,
   envAvalancheRpcUrlFallback,
+  envBaseRpcUrl,
+  envBaseWsUrl,
+  envFantomRpcUrl,
+  envFantomWsUrl,
+  envLineaRpcUrl,
+  envLineaWsUrl,
   envAvalancheWsUrl,
   envAvalancheWsUrlFallback,
   envBscRpcUrl,
@@ -106,6 +112,12 @@ function seedOne(chainId: ChainId): ChainNodeConfig {
             ? envAvalancheRpcUrl() || chain.rpcUrl
           : chainId === "solana"
             ? envSolanaRpcUrl() || chain.rpcUrl
+          : chainId === "base"
+            ? envBaseRpcUrl() || chain.rpcUrl
+          : chainId === "fantom"
+            ? envFantomRpcUrl() || chain.rpcUrl
+          : chainId === "linea"
+            ? envLineaRpcUrl() || chain.rpcUrl
           : chain.rpcUrl;
   const primaryWss =
     chainId === "bsc"
@@ -122,6 +134,12 @@ function seedOne(chainId: ChainId): ChainNodeConfig {
             ? envAvalancheWsUrl() || chain.wsUrl
           : chainId === "solana"
             ? envSolanaWsUrl() || chain.wsUrl
+          : chainId === "base"
+            ? envBaseWsUrl() || chain.wsUrl
+          : chainId === "fantom"
+            ? envFantomWsUrl() || chain.wsUrl
+          : chainId === "linea"
+            ? envLineaWsUrl() || chain.wsUrl
           : chain.wsUrl;
   const envBackupRpc =
     chainId === "bsc"
@@ -216,6 +234,36 @@ function shouldAdoptEnvEndpoint(current: string, seeded: string): boolean {
   if (current.replace(/\/$/, "").toLowerCase() === seeded.replace(/\/$/, "").toLowerCase()) return true;
   const nextHost = hostOf(seeded);
   const curHost = hostOf(current);
+  if (nextHost.includes("onfinality.io")) {
+    return (
+      !current ||
+      curHost.includes("onfinality.io") ||
+      curHost.includes("ankr.com") ||
+      curHost.includes("blockpi.network") ||
+      curHost.includes("rpcfast.com") ||
+      curHost.includes("quiknode.pro") ||
+      curHost.includes("alchemy.com") ||
+      curHost.includes("publicnode.com") ||
+      curHost.includes("binance.org") ||
+      curHost.includes("base.org") ||
+      isBlockmachineHost(curHost) ||
+      isDefaultPublicFallbackHost(curHost)
+    );
+  }
+  if (nextHost.includes("blockpi.network")) {
+    return (
+      !current ||
+      curHost.includes("ankr.com") ||
+      curHost.includes("quiknode.pro") ||
+      curHost.includes("alchemy.com") ||
+      curHost.includes("publicnode.com") ||
+      curHost.includes("binance.org") ||
+      curHost.includes("base.org") ||
+      curHost.includes("linea.build") ||
+      isBlockmachineHost(curHost) ||
+      isDefaultPublicFallbackHost(curHost)
+    );
+  }
   if (nextHost.includes("ankr.com")) {
     return (
       isBlockmachineHost(curHost) ||
@@ -351,6 +399,9 @@ function envPrimaryRpcFor(chainId: ChainId): string {
   if (chainId === "optimism") return envOptimismRpcUrl();
   if (chainId === "avalanche") return envAvalancheRpcUrl();
   if (chainId === "bsc") return envBscRpcUrl();
+  if (chainId === "base") return envBaseRpcUrl();
+  if (chainId === "fantom") return envFantomRpcUrl();
+  if (chainId === "linea") return envLineaRpcUrl();
   return "";
 }
 
@@ -371,6 +422,9 @@ function envPrimaryWssFor(chainId: ChainId): string {
   if (chainId === "optimism") return envOptimismWsUrl();
   if (chainId === "avalanche") return envAvalancheWsUrl();
   if (chainId === "bsc") return envBscWsUrl();
+  if (chainId === "solana") return envSolanaWsUrl();
+  if (chainId === "base") return envBaseWsUrl();
+  if (chainId === "fantom") return envFantomWsUrl();
   return "";
 }
 

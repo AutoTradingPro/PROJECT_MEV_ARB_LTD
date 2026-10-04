@@ -44,7 +44,7 @@ export interface ArbitrageMatrixTableProps {
 }
 
 function canExecuteRow(opp: Opportunity, _minSpreadBps: number): boolean {
-  return opp.status === "ready";
+  return opp.status === "ready" || opp.status === "validated";
 }
 
 function executeTitle(
@@ -382,10 +382,16 @@ export default function ArbitrageMatrixTable({
                     ) : (
                       <span
                         className={`text-[10px] font-bold uppercase ${
-                          opp.status === "ready" ? "text-emerald-400" : "text-slate-500"
+                          opp.status === "ready" || opp.status === "validated"
+                            ? "text-emerald-400"
+                            : "text-slate-500"
                         }`}
                       >
-                        {opp.status === "ready" ? "Siap" : "Rejected"}
+                        {opp.status === "validated"
+                          ? "Validated"
+                          : opp.status === "ready"
+                            ? "Siap"
+                            : "Rejected"}
                       </span>
                     )}
                   </td>

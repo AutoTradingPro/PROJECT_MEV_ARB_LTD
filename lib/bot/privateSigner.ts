@@ -3,6 +3,7 @@ import { createJsonRpcProvider, redactEndpoint, withRpcFailover } from "@/lib/bo
 import { normalizeTradingChainId } from "@/config/networks";
 import { getChain, type ChainId } from "@/lib/chain/networks";
 import { tokenWeiToUsd } from "@/lib/bot/configUnits";
+import { appendServerLog } from "@/lib/bot/serverLog";
 import { extractTxHash, explorerTxUrl, failedTxLogLines, formatRevertTxLog, logRevertWithTxHash, attachTxHash } from "@/lib/chain/explorer";
 import { ensureFreshBlock } from "@/lib/bot/blockFreshness";
 import { isPreflightFailure, preflightDiagFromOpportunity, preflightExecuteCall } from "@/lib/bot/simulate";
@@ -324,6 +325,11 @@ export async function sendAutonomousContractTx(input: {
           `[GAS] Dynamic Profit Sharing Bribe ${bribePct}% · tipBudget ${formatUnits(tipEth, "ether")} ETH` +
             ` · maxPriorityFeePerGas ${formatPriorityGwei(bribePriority)} Gwei · gasLimit ${gasLimit}`
         );
+        appendServerLog({
+          level: "info",
+          source: "BRIBE",
+          message: `Miner tip ${bribePct}% · budget ${formatUnits(tipEth, "ether")} ETH · priority ${formatPriorityGwei(bribePriority)} Gwei`,
+        });
       }
       const gasSettings = await calculateAggressiveGasArbitrum(
         readProvider,

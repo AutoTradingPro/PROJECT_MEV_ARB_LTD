@@ -15,11 +15,54 @@ const TAB_LABEL: Record<ScannerChainId, string> = {
   arbitrum: "Arbitrum",
   polygon: "Polygon",
   ethereum: "Ethereum",
+  linea: "Linea",
 };
+
+const TOP_ROW = SCANNER_CHAIN_LIST.slice(0, 5);
+const BOTTOM_ROW = SCANNER_CHAIN_LIST.slice(5);
+
+function NetworkTab({
+  id,
+  selected,
+  onSelect,
+}: {
+  id: ScannerChainId;
+  selected: boolean;
+  onSelect: (id: ScannerChainId) => void;
+}) {
+  const chain = getChain(id);
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={selected}
+      onClick={() => onSelect(id)}
+      className={`flex h-[42px] w-full min-w-0 items-center justify-center gap-1.5 rounded-[10px] border px-2 text-[12px] font-semibold text-slate-200 transition-[background-color,border-color] duration-150 cursor-pointer ${
+        selected
+          ? "border-slate-200/80 bg-slate-800"
+          : "border-slate-700/70 bg-[#0b1220] hover:border-slate-300/70 hover:bg-[#162033]"
+      }`}
+    >
+      <Image
+        src={chain.logoUrl}
+        alt=""
+        width={16}
+        height={16}
+        className="h-4 w-4 shrink-0 rounded-full"
+        unoptimized
+      />
+      <span className="min-w-0 truncate">{TAB_LABEL[id]}</span>
+    </button>
+  );
+}
 
 /** Tab scanner: ganti target data lokal saja — tidak memicu switch jaringan wallet. */
 export default function ScannerNetworkSwitcher() {
   const { chainId, setChainId } = useNetwork();
+
+  const select = (id: ScannerChainId) => {
+    if (isScannerChainId(id) && chainId !== id) setChainId(id);
+  };
 
   return (
     <div className="flex flex-col gap-2">
@@ -29,40 +72,28 @@ export default function ScannerNetworkSwitcher() {
       <div
         role="tablist"
         aria-label="Pilih jaringan scanner"
-        className="inline-flex w-full max-w-full flex-nowrap overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/80 p-0.5"
+        className="flex w-full flex-col gap-2 rounded-xl border border-slate-800 bg-slate-950/80 p-2"
       >
-        {SCANNER_CHAIN_LIST.map((network) => {
-          const chain = getChain(network.id);
-          const selected = chainId === network.id;
-          return (
-            <button
+        <div className="grid grid-cols-1 gap-2 min-[481px]:grid-cols-5">
+          {TOP_ROW.map((network) => (
+            <NetworkTab
               key={network.id}
-              type="button"
-              role="tab"
-              aria-selected={selected}
-              onClick={() => {
-                if (isScannerChainId(network.id) && chainId !== network.id) {
-                  setChainId(network.id);
-                }
-              }}
-              className={`flex shrink-0 items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold font-mono whitespace-nowrap transition-colors cursor-pointer ${
-                selected
-                  ? "bg-slate-800 text-white shadow-sm"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
-              }`}
-            >
-              <Image
-                src={chain.logoUrl}
-                alt=""
-                width={14}
-                height={14}
-                className="rounded-full shrink-0"
-                unoptimized
-              />
-              <span className={selected ? chain.accentClass : ""}>{TAB_LABEL[network.id]}</span>
-            </button>
-          );
-        })}
+              id={network.id}
+              selected={chainId === network.id}
+              onSelect={select}
+            />
+          ))}
+        </div>
+        <div className="mx-auto grid w-full grid-cols-1 gap-2 min-[481px]:w-[calc((100%-2rem)*4/5+1.5rem)] min-[481px]:grid-cols-4">
+          {BOTTOM_ROW.map((network) => (
+            <NetworkTab
+              key={network.id}
+              id={network.id}
+              selected={chainId === network.id}
+              onSelect={select}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );

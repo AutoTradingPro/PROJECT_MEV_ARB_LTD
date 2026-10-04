@@ -9,7 +9,12 @@ import type { BotConfig, Opportunity } from "@/lib/bot/types";
 import { usdToTokenWei, tokenWeiToUsd } from "@/lib/bot/configUnits";
 import { spotSpreadBps } from "@/lib/bot/pricing";
 import { minSpreadBpsFromConfig, spreadMeetsMinimum } from "@/lib/bot/autoExecute";
-import { solanaMinProfitFloorUsd } from "@/lib/bot/adaptiveMinProfit";
+import {
+  formatNetProfitSkip,
+  loanRatioForLiquidity,
+  loanUsdFromPoolLiquidity,
+  solanaMinProfitFloorUsd,
+} from "@/lib/bot/adaptiveMinProfit";
 import { defaultSolanaPairIds } from "@/lib/bot/solana/pairs";
 import { KAMINO_FLASH_FEE_PCT, kaminoFlashFeeWei } from "@/lib/bot/solana/kaminoConstants";
 import { ensureSolanaLiveSlotMonitor } from "@/lib/bot/solana/liveSlot";
@@ -98,7 +103,10 @@ async function spotOnVenue(input: {
     priceQuote,
     priceUsd,
     sellQuote,
-    liquidityUsd: estimateLiquidityUsd(input.loanUsd, sellQuote.priceImpactPct),
+    liquidityUsd: estimateLiquidityUsd(
+      tokenWeiToUsd(sellQuote.inAmount.toString(), baseDecimals, priceUsd),
+      sellQuote.priceImpactPct
+    ),
   };
 }
 
@@ -223,8 +231,11 @@ async function scanOneSolanaPair(input: {
   const priceDexAUsd = buyDex.priceUsd;
   const priceDexBUsd = sellDex.priceUsd;
   const spreadBps = spotSpreadBps(priceDexAUsd, priceDexBUsd);
+  const poolLiq = Math.min(buyDex.liquidityUsd, sellDex.liquidityUsd);
+  // Filter Jupiter mencampur CLMM dan AMM. Rasio V3 (2%) menjaga kaki terkonsentrasi.
+  const sizedLoan = loanUsdFromPoolLiquidity(poolLiq, loanRatioForLiquidity(true)) || loanUsd;
 
-  const amountIn = BigInt(usdToTokenWei(loanUsd, quoteDecimals, quoteUsd) || "0");
+  const amountIn = BigInt(usdToTokenWei(sizedLoan, quoteDecimals, quoteUsd) || "0");
   if (amountIn <= 0n) return emptySolOpp(pair, slot, "Nominal loan tidak valid.");
 
   let gross = 0n;
@@ -279,14 +290,13 @@ async function scanOneSolanaPair(input: {
   const grossUsd = tokenWeiToUsd(gross.toString(), quoteDecimals, quoteUsd);
   const feeUsd = tokenWeiToUsd(flashFee.toString(), quoteDecimals, quoteUsd);
   const netUsd = tokenWeiToUsd(net.toString(), quoteDecimals, quoteUsd);
-  const loanFloorUsd = solanaMinProfitFloorUsd(loanUsd);
+  const loanFloorUsd = solanaMinProfitFloorUsd(sizedLoan);
   const spreadOk = spreadMeetsMinimum(spreadBps, minBps);
   // Ready hanya jika deep/round-trip net lolos lantai — cegah sinyal spot palsu (LST premium).
   const deepNetOk = gross > 0n && netUsd + 1e-9 >= loanFloorUsd;
   const ready = spreadOk && deepNetOk && priceDexAUsd > 0 && priceDexBUsd > 0;
   const buyLiq = buyDex.liquidityUsd;
   const sellLiq = sellDex.liquidityUsd;
-  const poolLiq = Math.min(buyLiq, sellLiq);
   const minPctLabel = (minBps / 100).toFixed(3);
   const spotPct = (spreadBps / 100).toFixed(3);
 
@@ -311,8 +321,8 @@ async function scanOneSolanaPair(input: {
       ` ≠ profit executable (premium/impact) · Kamino ${feePct}% · slot #${slot}`;
   } else if (!deepNetOk) {
     rejectReason =
-      `Net RT $${netUsd.toFixed(4)} (= gross $${grossUsd.toFixed(4)} − Kamino $${feeUsd.toFixed(4)})` +
-      ` < lantai max(loan×0.10%,$5) $${loanFloorUsd.toFixed(4)}` +
+      `${formatNetProfitSkip(netUsd, loanFloorUsd)} ` +
+      `(= gross $${grossUsd.toFixed(4)} − Kamino $${feeUsd.toFixed(4)}) ` +
       ` · spot +${spotPct}% · slot #${slot}`;
   } else {
     rejectReason = `Harga quote belum valid · slot #${slot}`;
@@ -343,15 +353,15 @@ async function scanOneSolanaPair(input: {
               : `Jupiter_RT: OK gross $${grossUsd.toFixed(4)}`;
     const floorBit =
       gross > 0n
-        ? `net(gross−Kamino)=$${netUsd.toFixed(4)} vs lantai max(loan×0.10%,$5)=$${loanFloorUsd.toFixed(4)}` +
+        ? `net(gross−Kamino)=$${netUsd.toFixed(4)} vs target loan×0.10%=$${loanFloorUsd.toFixed(4)}` +
           (netUsd + 1e-9 >= loanFloorUsd ? " · LOLOS" : " · GAGAL (tergerus biaya / tipis)")
-        : `net tidak dihitung (gross ≤ 0) · lantai max(loan×0.10%,$5)=$${loanFloorUsd.toFixed(4)}`;
+        : `net tidak dihitung (gross ≤ 0) · target loan×0.10%=$${loanFloorUsd.toFixed(4)}`;
     console.log(
       `[SOLANA-SCAN][NOT-READY] ${pair.label} ${buyDex.venue.label}→${sellDex.venue.label}` +
         ` · spot +${spotPct}% ≥ min ${minPctLabel}%` +
         ` · ${rtBit}` +
         ` · ${floorBit}` +
-        ` · loan≈$${loanUsd.toFixed(2)} · slot #${slot}`
+        ` · loan≈$${sizedLoan.toFixed(2)} · slot #${slot}`
     );
   }
 
@@ -418,7 +428,7 @@ export async function scanSolanaOpportunities(input: {
   const slot = live.slot > 0 ? live.slot : await fetchSolanaSlot(scanner.rpcUrl);
   const pairIds = defaultSolanaPairIds(input.pairIds);
   const pairs = pairsForChain("solana").filter((item) => pairIds.includes(item.id));
-  const loanUsd = Number(input.config.loanAmountUsd) || 10_000;
+  const loanUsd = loanUsdFromPoolLiquidity(0);
   const feePct = KAMINO_FLASH_FEE_PCT;
   const minBps = minSpreadBpsFromConfig(input.config);
   const solUsd = await fetchSolUsdPrice();

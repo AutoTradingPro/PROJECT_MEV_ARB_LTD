@@ -1,6 +1,7 @@
 "use client";
 
 import AdminView from "@/components/admin/AdminView";
+import MevCoreEngine from "@/components/user-dashboard/MevCoreEngine";
 import NetworkModeToggle from "@/components/settings/NetworkModeToggle";
 import OperationalConfigBar from "@/components/tier/OperationalConfigBar";
 import { useBotConfig } from "@/context/BotConfigContext";
@@ -36,6 +37,7 @@ export default function MoneyManagementPanel() {
         <NetworkModeToggle variant="dark" />
       </section>
 
+      <MevCoreEngine />
       <OperationalConfigBar config={config} onChange={setConfig} />
       <AdminView embedded />
     </div>

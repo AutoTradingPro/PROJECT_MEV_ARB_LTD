@@ -2,16 +2,23 @@ export type CashbookKind = "inflow" | "outflow";
 
 export interface OwnerCashbookEntry {
   date: string;
+  /** Jam WIB `HH:mm:ss` bila ada di struk. */
+  time?: string;
   label: string;
   amountIdr: number;
   kind: CashbookKind;
+  category?: string;
   note?: string;
 }
 
 export interface OwnerCashbookLine {
   code: string;
   date: string;
+  time?: string;
+  /** Uraian transaksi, tanpa tanggal. */
+  item: string;
   label: string;
+  category: string;
   amountIdr: number;
   note?: string;
   kind: CashbookKind;
@@ -39,6 +46,8 @@ export interface OwnerMonthlySubscription {
   amountIdr: number;
   frequency: "monthly";
   nextPaymentDate: string;
+  /** Jam WIB pada struk, bila ada. */
+  paidAt?: string;
   active: boolean;
   note?: string;
 }
@@ -125,10 +134,21 @@ export const AUGUST_2026_CASHBOOK_ENTRIES: OwnerCashbookEntry[] = [
   },
   {
     date: "2026-09-18",
+    time: "08:30:42",
     kind: "inflow",
     amountIdr: 1_500_000,
     label: "Transfer Masuk / Setoran Kas — Mochamad Murtiman (BCA)",
+    category: "KAS",
     note: "08:30:42 WIB · Pemasukan Kas / Modal · a.n. Mochamad Murtiman (BCA)",
+  },
+  {
+    date: "2026-09-30",
+    time: "11:08:00",
+    kind: "inflow",
+    amountIdr: 2_000_000,
+    label: "m-Transfer BCA berhasil — setoran kas ke 8640087448 (Mochamad Murtiman)",
+    category: "KAS",
+    note: "30/09/2026 11:08:00 · BERHASIL · Ke 8640087448 · a.n. MOCHAMAD MURTIMAN",
   },
   { date: "2026-08-01", kind: "outflow", amountIdr: 17_000, label: "Indomaret" },
   { date: "2026-08-01", kind: "outflow", amountIdr: 3_179.08, label: "Biaya Kartu ATM" },
@@ -243,6 +263,7 @@ function taggedExpenseToEntries(items: OwnerInventoryItem[]): OwnerCashbookEntry
     kind: "outflow",
     amountIdr: item.amountIdr,
     label: item.item,
+    category: item.category,
     note: `${item.category}${item.note ? ` · ${item.note}` : ""}`,
   }));
 }
@@ -262,6 +283,22 @@ export const OWNER_PERSONAL_EXPENSES: OwnerInventoryItem[] = [
     item: "Pembelian beras 5 kg di Indomaret",
     category: "Konsumsi / Kebutuhan Rumah Tangga",
     amountIdr: 89_000,
+  },
+  {
+    id: "bulanan-beras-idm-tq52-2026-09-22",
+    date: "2026-09-22",
+    item: "Beli Beras (5 kg) — IDM TQ52 Diponegoro Boj",
+    category: "Belanja Bulanan / Kebutuhan Sehari-hari",
+    amountIdr: 98_000,
+    note: "Rincian 1 dari 2 · total struk IDM TQ52 DIPONEGORO BOJ Rp 106.800,00",
+  },
+  {
+    id: "bulanan-sikat-gigi-idm-tq52-2026-09-22",
+    date: "2026-09-22",
+    item: "Beli Sikat Gigi — IDM TQ52 Diponegoro Boj",
+    category: "Belanja Bulanan / Kebutuhan Sehari-hari",
+    amountIdr: 8_800,
+    note: "Rincian 2 dari 2 · total struk IDM TQ52 DIPONEGORO BOJ Rp 106.800,00",
   },
 ];
 
@@ -330,8 +367,8 @@ export const OWNER_WEB3_DEPOSITS: OwnerInventoryItem[] = [
   },
 ];
 
-/** Tanggal tutup buku — selaras setoran kas & nota QuickNode 18 September 2026. */
-export const CASHBOOK_AS_OF = "2026-09-18";
+/** Tanggal tutup buku — 30 September 2026. */
+export const CASHBOOK_AS_OF = "2026-09-30";
 
 type RecurringOpexSpec = {
   id: string;
@@ -355,7 +392,7 @@ export const OWNER_QUOTA_OPEX: RecurringOpexSpec = {
   endDate: CASHBOOK_AS_OF,
 };
 
-/** Konsumsi harian owner 7 Agustus — 18 September 2026. */
+/** Konsumsi harian owner 7 Agustus — tanggal tutup buku. */
 export const OWNER_DAILY_CONSUMABLES: RecurringOpexSpec[] = [
   {
     id: "rokok",
@@ -415,6 +452,27 @@ export const OWNER_MONTHLY_SUBSCRIPTIONS: OwnerMonthlySubscription[] = [
     nextPaymentDate: "2026-09-27",
     active: true,
     note: "Langganan bulanan aktif",
+  },
+  {
+    id: "sub-cursor-ai-usage-2026-09-25",
+    item: "Cursor AI (Cursor Usage Mid Aug)",
+    category: "Langganan / Software / AI Tool",
+    amountIdr: 372_536.2,
+    frequency: "monthly",
+    nextPaymentDate: "2026-09-25",
+    active: true,
+    note: "Blu Virtual Card (BCA Digital) · Pembayaran langganan atau penggunaan layanan Cursor AI per 25 September 2026",
+  },
+  {
+    id: "sub-cursor-ai-usage-2026-09-30",
+    item: "Cursor AI (Cursor Usage Mid Aug)",
+    category: "Pengeluaran",
+    amountIdr: 745_951.55,
+    frequency: "monthly",
+    nextPaymentDate: "2026-09-30",
+    active: true,
+    paidAt: "21:46:02",
+    note: "21:46:02 WIB · bluVirtual Card (BCA Digital) · Debit Online · No. Ref 0930 8602 8480 · kartu berakhir 0813",
   },
 ];
 
@@ -484,6 +542,7 @@ export function expandDailyOpex(spec: RecurringOpexSpec): OwnerCashbookEntry[] {
     kind: "outflow" as const,
     amountIdr: amount,
     label: spec.item,
+    category: "Pengeluaran Harian",
     note: `${cadence} · ${spec.detail}`,
   }));
 }
@@ -524,7 +583,9 @@ export function expandMonthlySubscriptions(
     date: item.nextPaymentDate,
     kind: "outflow" as const,
     amountIdr: roundIdr(item.amountIdr),
+    time: item.paidAt,
     label: item.item,
+    category: item.category,
     note: `${item.category} · Langganan bulanan · ${item.note ?? "Aktif"}`,
   }));
 }
@@ -541,7 +602,12 @@ function toLines(entries: OwnerCashbookEntry[], kind: CashbookKind, prefix: stri
     .map((item, index) => ({
       code: `${prefix}-${String(index + 1).padStart(3, "0")}`,
       date: item.date,
-      label: `${formatIdDate(item.date)} · ${item.label}`,
+      time: item.time,
+      item: item.label,
+      label: item.time
+        ? `${formatIdDate(item.date)} ${item.time} · ${item.label}`
+        : `${formatIdDate(item.date)} · ${item.label}`,
+      category: item.category ?? (kind === "inflow" ? "KAS" : "Pengeluaran"),
       amountIdr: roundIdr(item.amountIdr),
       note: item.note,
       kind,
@@ -573,10 +639,17 @@ function buildOpexSummary(input: {
   periodicEntries: OwnerCashbookEntry[];
   infrastructure: OwnerInventoryItem[];
   utilities: OwnerInventoryItem[];
+  subscriptionEntries: OwnerCashbookEntry[];
 }): OwnerOpexSummary {
   const infraEntries = taggedExpenseToEntries(input.infrastructure);
   const utilityEntries = taggedExpenseToEntries(input.utilities);
-  const posted = [...input.dailyEntries, ...input.periodicEntries, ...infraEntries, ...utilityEntries];
+  const posted = [
+    ...input.dailyEntries,
+    ...input.periodicEntries,
+    ...infraEntries,
+    ...utilityEntries,
+    ...input.subscriptionEntries,
+  ];
   const latestRpc = [...input.infrastructure].sort((a, b) => a.date.localeCompare(b.date)).at(-1);
   const cycleDays = rpcCycleDays(input.infrastructure);
   const rpcLatestIdr = roundIdr(latestRpc?.amountIdr ?? 0);
@@ -619,7 +692,10 @@ function toCommitmentLines(items: OwnerMonthlySubscription[]): OwnerCashbookLine
   return items.map((item, index) => ({
     code: `KB-${String(index + 1).padStart(3, "0")}`,
     date: item.nextPaymentDate,
+    time: item.paidAt,
+    item: item.item,
     label: `${formatIdDate(item.nextPaymentDate)} · ${item.item}`,
+    category: item.category,
     amountIdr: roundIdr(item.amountIdr),
     note: `${item.category} · ${item.active ? "Aktif" : "Nonaktif"}${item.note ? ` (${item.note})` : ""}`,
     kind: "outflow",
@@ -684,6 +760,7 @@ export function buildAugust2026Cashbook(openingIdr = 0): OwnerCashbook {
     periodicEntries: periodicOpexEntries,
     infrastructure,
     utilities,
+    subscriptionEntries,
   });
   const postedEntries = [
     ...mutasiEntries,
@@ -717,9 +794,9 @@ export function buildAugust2026Cashbook(openingIdr = 0): OwnerCashbook {
   return {
     id: "owner-cash-2026",
     currency: "IDR",
-    periodLabel: "1 Agustus — 18 September 2026",
+    periodLabel: "1 Agustus — 30 September 2026",
     source:
-      "Mutasi rekening, nota, inventaris, belanja pribadi, prive owner, deposit exchange, alokasi modal Trust Wallet ETH (uji arbitrase), infrastruktur RPC (ANKR / Blockmachine / QuickNode), utilitas PDAM, langganan bulanan, kuota, token listrik, dan konsumsi harian owner",
+      "Mutasi rekening, nota, inventaris, belanja pribadi, prive owner, deposit exchange, alokasi modal Trust Wallet ETH (uji arbitrase), infrastruktur RPC (ANKR / Blockmachine / QuickNode), utilitas PDAM, langganan bulanan (Google One, Cursor AI), kuota, token listrik, dan konsumsi harian owner",
     openingIdr: opening,
     inflows,
     outflows,

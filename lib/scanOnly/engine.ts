@@ -2,7 +2,15 @@ import { tokenWeiToUsd, toEngineConfig, usdToTokenWei } from "@/lib/bot/configUn
 import { DEFAULT_BOT_CONFIG, dexLabel } from "@/lib/bot/constants";
 import { nativeUsdPrice } from "@/lib/bot/bnbQuote";
 import { resolveFlashLoanFeePct, scanPoolFeePctFromBps } from "@/lib/bot/flashLoanProviders";
+import {
+  bestFlashloanForTradingChain,
+  feePpmToBps,
+  feePpmToPct,
+  flashloanExecutionBlock,
+} from "@/src/flashloan/globalProviderSelector";
 import { estimateTwoDexFlashArb } from "@/lib/bot/profitEngine";
+import { optimalFlashloanSize } from "@/src/engine/dynamicSizing";
+import { dexIsConcentrated } from "@/lib/bot/dexRegistry";
 import { liveSpotPrice, poolLiquidityUsd, quoteTokenUsd, spotSpreadBps } from "@/lib/bot/pricing";
 import {
   BOT_MODE,
@@ -27,8 +35,6 @@ import type { ChainId } from "@/lib/chain/networks";
 import { hydrateChainQuotaFromDisk } from "@/lib/owner/chainQuotaPersist";
 import { hardAdoptScanChain } from "@/lib/bot/scanRuntime";
 
-const IMPACT_SCALE = 1_000_000n;
-
 function midQuoteUsd(pools: Map<string, LivePool>, pairPrefix: string): number {
   const prices: number[] = [];
   for (const [key, pool] of pools) {
@@ -45,16 +51,6 @@ function nativeGasCostUsd(gasPriceWei: bigint, gasLimit: bigint, nativeUsd: numb
   const native = Number(gasPriceWei * gasLimit) / 1e18;
   const usd = native * nativeUsd;
   return Number.isFinite(usd) && usd > 0 ? usd : 0;
-}
-
-/** amountIn / (amountIn + reserveIn) <= maxImpact → amountIn = reserve * i / (1-i) */
-export function maxAmountForPriceImpact(reserveIn: bigint, maxImpactPct: number): bigint {
-  if (reserveIn <= 0n) return 0n;
-  const pct = Number.isFinite(maxImpactPct) ? Math.min(50, Math.max(0.05, maxImpactPct)) : 1;
-  const num = BigInt(Math.round(pct * 10_000));
-  const den = IMPACT_SCALE - num;
-  if (den <= 0n) return reserveIn / 100n;
-  return (reserveIn * num) / den;
 }
 
 function poolTvl(pool: LivePool | undefined, quoteUsd: number): number {
@@ -120,6 +116,48 @@ export async function runScanOnlyAnalysis(input: {
   const bribePct = resolveDynamicBribePercent(config);
   const targets = scanOnlyTargetsForChain(chainId);
   const dexIds = scanOnlyDexIdsForChain(chainId);
+  const blocked = flashloanExecutionBlock(chainId);
+  if (blocked) {
+    const rows: ScanOnlyRow[] = targets.map((target) => ({
+      no: target.no,
+      pairId: target.pairId,
+      pair: target.pairLabel,
+      route: formatScanOnlyRoute(target.dexA, target.dexB),
+      dexA: target.dexA,
+      dexB: target.dexB,
+      poolTvlUsd: 0,
+      maxSafeLoanUsd: 0,
+      priceImpactPct: 0,
+      spreadBps: 0,
+      grossUsd: 0,
+      dexFeeUsd: 0,
+      flashFeeUsd: 0,
+      bribeUsd: 0,
+      gasUsd: 0,
+      netUsd: 0,
+      status: "skip",
+      statusLabel: "❌ Skip",
+      reason: blocked,
+    }));
+    return {
+      botMode: defaultBotMode(),
+      chainId,
+      blockNumber: 0,
+      gasPriceWei: "0",
+      maxPriceImpactPct: maxImpactPct,
+      minSpreadPct,
+      maxSpotSpreadPct,
+      bribePct,
+      minNetProfitUsd: MIN_NET_PROFIT_USD,
+      scannedAt: new Date().toISOString(),
+      rows,
+      matrix: formatScanOnlyMatrix(rows, 0),
+      layakCount: 0,
+      tipisCount: 0,
+      skipCount: rows.length,
+      bestNetUsd: 0,
+    };
+  }
   const tokens = targets
     .map((target) => {
       const pair = getPair(chainId, target.pairId);
@@ -171,9 +209,12 @@ export async function runScanOnlyAnalysis(input: {
     nativeUsdLive > 0 ? nativeUsdLive : nativeUsdPrice(nativeSymbolForChain(chainId));
   const ethUsd = ethUsdPair ? midQuoteUsd(pools, ethUsdPair) || nativeUsd : nativeUsd;
   const gasUsd = nativeGasCostUsd(gasPrice, BigInt(engine.gasLimit), nativeUsd);
-  const flash = resolveFlashLoanFeePct(config.flashLoanPlatforms, config.flashLoanProvider, {
-    aaveFeePct: config.aaveFeePct,
-  });
+  const bestFlash = bestFlashloanForTradingChain(chainId);
+  const flash = bestFlash
+    ? { feePct: feePpmToPct(bestFlash.feePpm) }
+    : resolveFlashLoanFeePct(config.flashLoanPlatforms, config.flashLoanProvider, {
+        aaveFeePct: config.aaveFeePct,
+      });
 
   const rows: ScanOnlyRow[] = targets.map((target) => {
     const buyPool = pools.get(poolKey(target.pairId, target.dexA));
@@ -257,12 +298,16 @@ export async function runScanOnlyAnalysis(input: {
       };
     }
 
-    const maxBuy = maxAmountForPriceImpact(buyPool.reserveQuote, maxImpactPct);
-    const maxSellBase = maxAmountForPriceImpact(sellPool.reserveBase, maxImpactPct);
-    const maxSellQuote =
-      buyPool.reserveBase > 0n ? (maxSellBase * buyPool.reserveQuote) / buyPool.reserveBase : 0n;
-    let amountIn = maxBuy < maxSellQuote ? maxBuy : maxSellQuote;
-    if (amountIn <= 0n) amountIn = 0n;
+    const dynamicSize = optimalFlashloanSize({
+      buyReserveQuote: buyPool.reserveQuote,
+      sellReserveQuote: sellPool.reserveQuote,
+      buyTvlUsd: buyTvl,
+      sellTvlUsd: sellTvl,
+      quoteDecimals: target.quoteDecimals,
+      quoteUsd,
+      concentrated: dexIsConcentrated(target.dexA) || dexIsConcentrated(target.dexB),
+    });
+    const amountIn = dynamicSize.amountInWei;
 
     const bought = getAmountOut(amountIn, buyPool.reserveQuote, buyPool.reserveBase, buyPool.feeBps);
     const buyImpact = reservePriceImpactPct(amountIn, buyPool.reserveQuote);
@@ -270,10 +315,10 @@ export async function runScanOnlyAnalysis(input: {
     const priceImpactPct = Math.max(buyImpact, sellImpact);
     const maxSafeLoanUsd = tokenWeiToUsd(amountIn, target.quoteDecimals, quoteUsd);
 
-    if (amountIn <= 0n || priceImpactPct - 1e-6 > maxImpactPct) {
+    if (amountIn <= 0n) {
       const gate = classifyEligibility({
-        skipLabel: "❌ Skip (Impact Tinggi)",
-        skipReason: `Price impact ${priceImpactPct.toFixed(2)}% > max ${maxImpactPct.toFixed(2)}%`,
+        skipLabel: "❌ Skip",
+        skipReason: "Likuiditas pool tidak cukup untuk ukuran flashloan 2%/3%",
         netUsd: 0,
         maxSafeLoanUsd,
       });
@@ -295,8 +340,19 @@ export async function runScanOnlyAnalysis(input: {
     }
 
     const gasCostQuoteWei = BigInt(usdToTokenWei(gasUsd, target.quoteDecimals, quoteUsd));
+    const routedFlash = bestFlashloanForTradingChain(chainId, {
+      poolFee: buyPool.v3Fee,
+      poolFeePct: scanPoolFeePctFromBps(buyPool.feeBps),
+    });
+    const routeEngine = {
+      ...engine,
+      flashFeePpm: routedFlash?.feePpm ?? engine.flashFeePpm,
+      aaveFeeBps: routedFlash ? feePpmToBps(routedFlash.feePpm) : engine.aaveFeeBps,
+    };
+    const routeFlashPct = routedFlash ? feePpmToPct(routedFlash.feePpm) : flash.feePct;
     const result = estimateTwoDexFlashArb({
       amountIn,
+      dynamicSize,
       buy: {
         reserveIn: buyPool.reserveQuote,
         reserveOut: buyPool.reserveBase,
@@ -309,7 +365,7 @@ export async function runScanOnlyAnalysis(input: {
       },
       gasPriceWei: gasPrice,
       gasLimit: BigInt(engine.gasLimit),
-      config: engine,
+      config: routeEngine,
       spotSpreadBps: spreadBps,
       gasCostQuoteWei,
       useSpotFill: true,
@@ -320,7 +376,7 @@ export async function runScanOnlyAnalysis(input: {
     const sellFeePct = scanPoolFeePctFromBps(sellPool.feeBps);
     const dexFeeUsd =
       maxSafeLoanUsd * (buyFeePct / 100) + Math.max(0, maxSafeLoanUsd + grossUsd) * (sellFeePct / 100);
-    const flashFeeUsd = maxSafeLoanUsd * (flash.feePct / 100);
+    const flashFeeUsd = maxSafeLoanUsd * (routeFlashPct / 100);
     const bribeUsd = Math.max(0, grossUsd) * (bribePct / 100);
     const netUsd = grossUsd - dexFeeUsd - flashFeeUsd - gasUsd - bribeUsd;
     const gate = classifyEligibility({ netUsd, maxSafeLoanUsd });

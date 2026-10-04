@@ -89,6 +89,10 @@ export interface LivePool {
   tvlReliable?: boolean;
   /** Fee Uniswap V3 (uint24), hanya terisi untuk pool V3. */
   v3Fee?: number;
+  /** Q64.96 dari slot0. Dipakai quote SwapMath lokal. */
+  sqrtPriceX96?: bigint;
+  tick?: number;
+  v3Quote?: import("@/scanner/v3/swap").V3QuotePool;
 }
 
 /** @deprecated gunakan reserveBase / reserveQuote */
@@ -327,11 +331,13 @@ function decodeUint(data: string, iface: Interface, fn: string): bigint | null {
   }
 }
 
-function decodeSqrtPrice(data: string): bigint | null {
+function decodeSlot0(data: string): { sqrtPriceX96: bigint; tick: number } | null {
   try {
     const decoded = V3_POOL_IFACE.decodeFunctionResult("slot0", data);
-    const value = BigInt(decoded[0]);
-    return value > 0n ? value : null;
+    const sqrtPriceX96 = BigInt(decoded[0]);
+    const tick = Number(decoded[1]);
+    if (sqrtPriceX96 <= 0n || !Number.isInteger(tick)) return null;
+    return { sqrtPriceX96, tick };
   } catch {
     return null;
   }
@@ -930,7 +936,7 @@ async function loadV3DexPools(
   const best = [...bestByJob.values()];
   if (best.length === 0) return result;
 
-  let slot0s: (bigint | null)[];
+  let slot0s: ({ sqrtPriceX96: bigint; tick: number } | null)[];
   let fees: (bigint | null)[];
   let token0s: (string | null)[];
   let baseBals: (bigint | null)[];
@@ -964,7 +970,7 @@ async function loadV3DexPools(
       })),
     ]);
     const n = best.length;
-    slot0s = rows.slice(0, n).map((item) => (item.success ? decodeSqrtPrice(item.returnData) : null));
+    slot0s = rows.slice(0, n).map((item) => (item.success ? decodeSlot0(item.returnData) : null));
     fees = rows.slice(n, n * 2).map((item) => (item.success ? decodeUint(item.returnData, V3_POOL_IFACE, "fee") : null));
     token0s = rows.slice(n * 2, n * 3).map((item) =>
       item.success ? decodeAddress(item.returnData, V3_POOL_IFACE, "token0") : null
@@ -982,8 +988,9 @@ async function loadV3DexPools(
 
   for (let i = 0; i < best.length; i++) {
     const item = best[i];
-    const sqrtPrice = slot0s[i];
-    if (!sqrtPrice) continue;
+    const slot0 = slot0s[i];
+    if (!slot0) continue;
+    const sqrtPrice = slot0.sqrtPriceX96;
     const baseDecimals = decimalsByToken.get(item.job.base.toLowerCase()) ?? item.job.baseDecimals;
     const quoteDecimals = decimalsByToken.get(item.job.quote.toLowerCase()) ?? item.job.quoteDecimals;
     const token0 = (token0s[i] ?? v2Token0(item.job.base, item.job.quote)).toLowerCase();
@@ -1018,6 +1025,8 @@ async function loadV3DexPools(
       spotPrice: price,
       liquidity: item.liquidity,
       v3Fee: feeTier,
+      sqrtPriceX96: sqrtPrice,
+      tick: slot0.tick,
       tvlReliable: reserves.reliable,
     });
   }

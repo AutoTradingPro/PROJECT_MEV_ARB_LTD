@@ -74,10 +74,9 @@ export function extremeFilterCaps(config: BotConfig): {
 } {
   const extreme = normalizeGasStrategyMode(config.gasStrategyMode) === "extreme";
   const spreadMul = extreme ? DEFAULT_GAS_STRATEGY.extremeSpreadMultiplier : 1;
-  const profitMul = extreme ? DEFAULT_GAS_STRATEGY.extremeProfitMultiplier : 1;
   return {
     minSpreadBps: Math.round(config.minSpreadPct * 100 * spreadMul),
-    minProfitUsd: proportionalMinProfitAnchorUsd(config.loanAmountUsd) * profitMul,
+    minProfitUsd: proportionalMinProfitAnchorUsd(config.loanAmountUsd),
     maxGasCostUsd: Number.POSITIVE_INFINITY,
   };
 }

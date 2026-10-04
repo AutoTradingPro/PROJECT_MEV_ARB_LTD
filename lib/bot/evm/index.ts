@@ -13,6 +13,7 @@ export {
 export { submitPrivateRawTx } from "@/lib/bot/privateSubmit";
 export { buildExecuteCalldata } from "@/lib/bot/encodeArb";
 export { preflightExecuteCall, simulateEncodedCall } from "@/lib/bot/simulate";
+export { runOnChainDryRun } from "@/lib/bot/dryRun";
 export {
   makeWriteProvider,
   privateExecutorRpcUrl,

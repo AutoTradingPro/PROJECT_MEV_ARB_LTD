@@ -19,7 +19,8 @@ export type DexId =
   | "traderjoe"
   | "osmosis"
   | "raydium"
-  | "orca";
+  | "orca"
+  | "meteora";
 
 export type ScanMode = "single" | "full";
 
@@ -87,7 +88,7 @@ export interface BotConfig {
   extremeMaxGasGwei: number;
   /** Skip pool jika TVL cadangan (kedua sisi, USD) di bawah ini. */
   minPoolLiquidityUsd: number;
-  /** SCAN_ONLY: skip jika impact Max Safe Loan di atas ini. Eksekusi live: gerbang profit = max(loan × 0.60%, costFloor). */
+  /** SCAN_ONLY: skip jika impact Max Safe Loan di atas ini. Eksekusi live: netProfitUsd >= loan × 0.10%. */
   maxPriceImpactPct: number;
   /** true = kirim via private bundle/RPC; false = mempool publik (JSON-RPC standar). */
   useBundle: boolean;
@@ -133,7 +134,7 @@ export interface Opportunity {
   quoteUsd?: number;
   /** Nomor blok saat peluang dihitung (pengaman data basi sebelum kirim tx). */
   detectedBlock?: number;
-  status: "ready" | "simulated" | "rejected" | "executing" | "completed" | "failed";
+  status: "ready" | "validated" | "simulated" | "rejected" | "executing" | "completed" | "failed";
   reason?: string;
   /** Fee swap pool DEX yang dipindai (persen), dari feeBps pool beli. */
   scanPoolFeePct?: number;
@@ -151,6 +152,8 @@ export interface Opportunity {
   sellLiquidityUsd?: number;
   /** Price impact terburuk di dua hop (persen). */
   priceImpactPct?: number;
+  /** Tip/bribe estimasi (USD) untuk net tampilan = pinjaman × spread − gas − bribe. */
+  bribeUsd?: number;
 }
 
 /** Snapshot jejak flash-loan yang disimpan saat eksekusi sukses. */

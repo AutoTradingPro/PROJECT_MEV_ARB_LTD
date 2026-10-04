@@ -58,6 +58,7 @@ export type ChainId =
   | "polygon"
   | "optimism"
   | "fantom"
+  | "linea"
   | "cosmos";
 
 export interface ChainConfig {
@@ -182,6 +183,18 @@ export const CHAINS: ChainConfig[] = [
     evm: true,
     accentClass: "text-blue-300",
     logoUrl: TW + "/fantom/info/logo.png",
+  },
+  {
+    id: "linea",
+    label: "Linea",
+    shortLabel: "Linea Mainnet",
+    nativeSymbol: "ETH",
+    rpcUrl: "https://rpc.linea.build",
+    wsUrl: "wss://rpc.linea.build",
+    chainId: 59144,
+    evm: true,
+    accentClass: "text-cyan-300",
+    logoUrl: TW + "/linea/info/logo.png",
   },
   {
     id: "cosmos",

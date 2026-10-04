@@ -1,6 +1,8 @@
 /**
  * Konstanta Kamino K-Lend — aman untuk import client (tanpa Node/fs / QuickNode fetch).
  */
+import { FLASH_FEE_PPM } from "@/src/flashloan/globalProviderSelector";
+
 export const KAMINO_FLASH_CHAIN_ID = "solana" as const;
 
 /** Program KLend (Kamino Lending) — Solana mainnet. */
@@ -8,13 +10,14 @@ export const KAMINO_KLEND_PROGRAM_ID = "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavg
 
 export const KAMINO_FLASH_LOAN_SOURCE = KAMINO_KLEND_PROGRAM_ID;
 
-/** Fee flash borrow Kamino K-Lend (persen) — 0.001%. */
-export const KAMINO_FLASH_FEE_PCT = 0.001;
+/** 10 ppm = 0.001%. */
+export const KAMINO_FLASH_FEE_PPM = FLASH_FEE_PPM.KAMINO;
+export const KAMINO_FLASH_FEE_PCT = KAMINO_FLASH_FEE_PPM / 10_000;
 
-/** 0.001% = 1 / 100_000 dari principal (wei/lamports base units). */
+/** 0.001% = principal × 10 / 1_000_000. */
 export function kaminoFlashFeeWei(amountIn: bigint): bigint {
   if (amountIn <= 0n) return 0n;
-  return amountIn / 100_000n;
+  return (amountIn * BigInt(KAMINO_FLASH_FEE_PPM)) / 1_000_000n;
 }
 
 export function isKaminoFlashProvider(provider?: string | null): boolean {

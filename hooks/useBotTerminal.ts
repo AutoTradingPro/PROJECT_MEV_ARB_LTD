@@ -120,11 +120,7 @@ export function useBotTerminal({
     if (!scannerEnabled) return;
     push(
       "info",
-      `Bot Pro aktif · ${flashLoanProviderLabel(config.flashLoanProvider)} · ${config.gasStrategyMode === "extreme" ? "EXTREME" : "SLOW"} · auto-exec · gas live jaringan (tanpa plafon) · cooldown ${AUTO_EXECUTE.cooldownMs / 1000}s→${AUTO_EXECUTE.hotCooldownMs / 1000}s near target · loan ${formatUsd(config.loanAmountUsd)} · min profit ${
-        config.chainId === "solana"
-          ? `max(loan×0.10%,$5) (${formatUsd(config.minProfitUsd)})`
-          : `max(loan×0.60%,costFloor) (${formatUsd(config.minProfitUsd)})`
-      } · spread ≥ ${formatPct(config.minSpreadPct)}`
+      `Bot Pro aktif · ${flashLoanProviderLabel(config.flashLoanProvider)} · ${config.gasStrategyMode === "extreme" ? "EXTREME" : "SLOW"} · auto-exec · gas live jaringan (tanpa plafon) · cooldown ${AUTO_EXECUTE.cooldownMs / 1000}s→${AUTO_EXECUTE.hotCooldownMs / 1000}s near target · loan 2% likuiditas pool · min profit loan×0.10% · spread ≥ ${formatPct(config.minSpreadPct)}`
     );
   }, [scannerEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
 

@@ -131,6 +131,8 @@ export function portalChainFromEvmId(evmChainId: number | null): ChainId | null 
       return "avalanche";
     case 8453:
       return "base";
+    case 59144:
+      return "linea";
     case BSC_EVM_CHAIN_ID:
       return "bsc";
     case 250:

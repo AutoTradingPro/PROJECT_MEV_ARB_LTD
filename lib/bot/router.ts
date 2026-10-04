@@ -44,7 +44,7 @@ export async function runBotWorker(input?: {
     const scanMode = input?.scanMode === "single" ? "single" : "full";
     const result = await runSolanaWorker({
       config: {
-        ...(input?.config as BotConfig | undefined),
+        ...input?.config,
         scanMode,
       },
       pairIds: input?.pairIds,

@@ -7,7 +7,6 @@ import { useBotConfig } from "@/context/BotConfigContext";
 import { useTier } from "@/context/TierContext";
 import { aaveFeePctForTier } from "@/lib/bot/constants";
 import { formatPct, formatUsd } from "@/lib/bot/configUnits";
-import { proportionalMinProfitAnchorUsd } from "@/lib/bot/adaptiveMinProfit";
 import { clampBribePercent, resolveDynamicBribePercent } from "@/lib/bot/dynamicBribe";
 import { clampMaxPriceImpactPct, clampMaxSpotSpreadPct, clampMinPoolLiquidityUsd } from "@/lib/bot/poolSafety";
 import {
@@ -145,7 +144,7 @@ export default function OperationalConfigBar({
           <p className="truncate text-[10px] font-mono text-sky-400/90">
             <span className="font-bold uppercase tracking-wide text-sky-300/80">Auto Mode</span>
             {" · "}
-            Min Profit: loan × 0.05% ({formatUsd(proportionalMinProfitAnchorUsd(liveConfig.loanAmountUsd))}) · Slippage: fleksibel (0.5%–1.0%)
+            Min Profit: loan × 0.10% · Loan: 2% likuiditas pool · Slippage: fleksibel (0.5%–1.0%)
           </p>
         </div>
 
@@ -337,7 +336,7 @@ export default function OperationalConfigBar({
       <p className="text-[10px] font-mono text-slate-600">
         Loan {formatUsd(liveConfig.loanAmountUsd)} USDT · Spread ≥ {formatPct(draft.minSpreadPct)} ·
         Liq ≥ {formatUsd(draft.minPoolLiquidityUsd ?? 100000)} · Slippage 0.5%–1.0% · Min profit{" "}
-        {liveConfig.chainId === "solana" ? "max(loan×0.10%,$5)" : "max(loan×0.60%,costFloor)"} · Dynamic Profit Sharing Bribe{" "}
+        loan×0.10% · Dynamic Profit Sharing Bribe{" "}
         {formatPct(resolveDynamicBribePercent(draft))} · Flash fee {formatPct(feePct)} (
         {feeProvider.label}
         {feeProvider.autoDetectFee ? " · auto-detect" : ""} · {resolvedFee.liquidity}) · Est. net{" "}

@@ -3,13 +3,13 @@ import { toEngineConfig } from "@/lib/bot/configUnits";
 import type { BotConfig, Opportunity } from "@/lib/bot/types";
 
 /**
- * Standar global eksekusi EVM — lantai laba = loan × 0.60% (60 bps)
- * untuk menutup ~2× fee DEX 0.30%. amountOutMin mengambil haircut
+ * Standar global eksekusi — target laba bersih = loan × 0.10% (10 bps).
+ * amountOutMin mengambil haircut
  * slippage 0.5%–1.0% dari expectedOut agar rute Uniswap/Sushi tidak
  * revert SlippageExceeded hanya karena pergeseran harga mikro.
  */
-export const GLOBAL_EXEC_MIN_PROFIT_BPS = 60;
-export const ADAPTIVE_MIN_PROFIT_BPS_FLOOR = 60;
+export const GLOBAL_EXEC_MIN_PROFIT_BPS = 10;
+export const ADAPTIVE_MIN_PROFIT_BPS_FLOOR = 10;
 /** Toleransi slippage minimum (0.5%). */
 export const ADAPTIVE_SLIPPAGE_BPS_FLOOR = 50;
 /** Toleransi slippage maksimum (1.0%). */
@@ -35,7 +35,7 @@ export function routeVolatilityBps(spreadBps: number, priceImpactPct?: number): 
   return spread + impactBps;
 }
 
-/** Lantai laba (bps): 0.60%×loan agar fee 2× DEX ter-cover sebelum callback. */
+/** Lantai laba (bps): 0,10% dari loan. */
 export function adaptiveMinProfitBps(_spreadBps: number, _priceImpactPct?: number): number {
   return GLOBAL_EXEC_MIN_PROFIT_BPS;
 }

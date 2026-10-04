@@ -152,7 +152,7 @@ export async function buildFinancialReport(period: FinancePeriodId): Promise<Fin
     })),
     {
       at: end.toISOString(),
-      category: "policy",
+      category: "policy" as const,
       title: `Kebijakan ${FINANCE_POLICY.policyVersion}`,
       detail: `Basis ${FINANCE_POLICY.basis} · mata uang ${FINANCE_POLICY.functionalCurrency} · share Pro ${FINANCE_POLICY.platformProfitSharePct}%`,
     },
@@ -371,7 +371,7 @@ export async function buildFinancialReport(period: FinancePeriodId): Promise<Fin
           title: "3. Formula spread & profit eksekusi",
           paragraphs: [
             "Spread spot (bps) = (P_jual − P_beli) / P_beli × 10.000. Peluang ditolak jika spread ≤ 0 atau di atas ambang data buruk.",
-            "Laba kotor = hasil swap jual − jumlah repay flash loan (pokok + premi). minAmountOut = lantai repay + min profit max(loan×0.60%,costFloor) (slippage adaptif 0.5%–1.0%).",
+            "Laba kotor = hasil swap jual − jumlah repay flash loan (pokok + premi). minAmountOut = lantai repay + min profit loan×0.10% (slippage adaptif 0.5%–1.0%).",
             "Laba bersih user = laba kotor − biaya gas (setara Rupiah dari quote stablecoin) − validator tip. Platform mengambil porsi Pro dari laba bersih tersebut.",
           ],
           rows: [
@@ -401,11 +401,11 @@ export async function buildFinancialReport(period: FinancePeriodId): Promise<Fin
           ],
         },
         {
-          title: "5. Buku kas owner (IDR) — 1 Agustus s.d. 15 September 2026",
+          title: `5. Buku kas owner (IDR) — ${cashbook.periodLabel}`,
           paragraphs: [
             "Money management owner dicatat dalam Rupiah, selaras dengan buku operasional platform. Kas masuk adalah setoran modal / pendapatan operasional; pengeluaran mengikuti mutasi rekening, nota, inventaris hardware, deposit exchange, alokasi modal Trust Wallet ETH (uji arbitrase), infrastruktur RPC, utilitas PDAM, langganan software/cloud, opex kuota internet, token listrik, dan konsumsi harian.",
             "Saldo akhir = kas awal (Rp 0, tidak ada saldo pembuka tercatat) + total kas masuk − total pengeluaran.",
-            `OpEx wajib (kuota, konsumsi operasional, token listrik, langganan RPC, dan utilitas PDAM) diakumulasi sampai tanggal buku ${CASHBOOK_AS_OF}. Struk riil bluVirtual Card: Blockmachine RPC Rp 161.797,50 (12 September 2026, TAOSTATS, ekuivalen $9,00) dan perpanjangan ANKR RPC/WSS Rp 184.095,56 (15 September 2026, 15:00:58 WIB, WEB3 TECHNOLOGIES INC, No. Ref 0915 8075 5282); subtotal kedua struk Rp 345.893,06. PDAM Rp 102.500,00 (9 September 2026, termasuk biaya admin) tetap masuk rekap mingguan dan bulan berjalan.`,
+            `OpEx wajib (kuota, konsumsi operasional, token listrik, langganan RPC, utilitas PDAM, dan langganan software yang sudah jatuh tempo — termasuk Cursor AI Rp 372.536,20 pada 25 September 2026 dan Rp 745.951,55 pada 30 September 2026 pukul 21:46:02 WIB via bluVirtual Card, No. Ref 0930 8602 8480) diakumulasi sampai tanggal buku ${CASHBOOK_AS_OF}. Kas masuk 30 September 2026 pukul 11:08:00 sebesar Rp 2.000.000,00 (m-Transfer BCA ke 8640087448 a.n. Mochamad Murtiman, kategori KAS). Struk riil bluVirtual Card: Blockmachine RPC Rp 161.797,50 (12 September 2026, TAOSTATS, ekuivalen $9,00) dan perpanjangan ANKR RPC/WSS Rp 184.095,56 (15 September 2026, 15:00:58 WIB, WEB3 TECHNOLOGIES INC, No. Ref 0915 8075 5282); subtotal kedua struk Rp 345.893,06. PDAM Rp 102.500,00 (9 September 2026, termasuk biaya admin) tetap masuk rekap mingguan dan bulan berjalan.`,
             ...cashbook.recurring.map((item) =>
               item.intervalDays > 1
                 ? `${item.item}: ${item.detail}, ${item.days} kali dari ${item.startDate} s.d. ${item.endDate} = ${formatFinanceIdr(item.totalIdr)}.`

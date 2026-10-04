@@ -1,15 +1,25 @@
+import { NET_PROFIT_SKIP_REASON } from "@/lib/bot/adaptiveMinProfit";
 import type { Opportunity } from "./types";
-import { aaveFlashRepayAmount, bpsOf, estimateSpotRoundTripQuote, getAmountOut } from "./dexMath";
+import { bpsOf, estimateSpotRoundTripQuote, flashRepayFromPpm, getAmountOut } from "./dexMath";
 import type { EngineConfig } from "./configUnits";
+import { resolveDynamicAmountIn, type DynamicLoanSize } from "@/src/engine/dynamicSizing";
+import { quoteLocalV3ExactIn } from "@/scanner/localQuote";
+import type { V3QuotePool } from "@/scanner/v3/swap";
 
 export interface ReserveQuote {
   reserveIn: bigint;
   reserveOut: bigint;
   feeBps: bigint;
+  /** Jika terisi, kaki ini memakai SwapMath V3, bukan rumus x*y. */
+  v3?: V3QuotePool | null;
+  zeroForOne?: boolean;
 }
 
 export interface ProfitInput {
+  /** Fallback bila `dynamicSize` kosong. Jalur scan mengisi keduanya dari likuiditas pool. */
   amountIn: bigint;
+  /** Ukuran pinjaman dari `optimalFlashloanSize`. Dipakai sebagai amount in. */
+  dynamicSize?: Pick<DynamicLoanSize, "amountInWei">;
   buy: ReserveQuote;
   sell: ReserveQuote;
   gasPriceWei: bigint;
@@ -36,27 +46,19 @@ export interface ProfitResult {
 }
 
 export function estimateTwoDexFlashArb(input: ProfitInput): ProfitResult {
-  const bought = getAmountOut(
-    input.amountIn,
-    input.buy.reserveIn,
-    input.buy.reserveOut,
-    input.buy.feeBps
-  );
-  const ammSold = getAmountOut(
-    bought,
-    input.sell.reserveIn,
-    input.sell.reserveOut,
-    input.sell.feeBps
-  );
+  const amountIn = resolveDynamicAmountIn(input.dynamicSize, input.amountIn);
+  const bought = quoteLeg(amountIn, input.buy);
+  const ammSold = quoteLeg(bought, input.sell);
   const spotSold = estimateSpotRoundTripQuote(
-    input.amountIn,
+    amountIn,
     input.spotSpreadBps,
     input.buy.feeBps,
     input.sell.feeBps
   );
-  const sold =
-    (input.useSpotFill || input.spotSpreadBps > 0) && spotSold > ammSold ? spotSold : ammSold;
-  const repay = aaveFlashRepayAmount(input.amountIn, BigInt(input.config.aaveFeeBps));
+  const v3Fill = Boolean(input.buy.v3 || input.sell.v3);
+  const sold = !v3Fill && (input.useSpotFill || input.spotSpreadBps > 0) && spotSold > ammSold ? spotSold : ammSold;
+  const feePpm = input.config.flashFeePpm ?? input.config.aaveFeeBps * 100;
+  const repay = flashRepayFromPpm(amountIn, BigInt(Math.max(0, Math.round(feePpm))));
   /** minAmountOut dinamis dipasang saat encode calldata, bukan haircut laba scan. */
   const grossProfit = sold > repay ? sold - repay : 0n;
   const gasCost =
@@ -79,7 +81,7 @@ export function estimateTwoDexFlashArb(input: ProfitInput): ProfitResult {
   } else if (netProfit <= 0n) {
     rejectReason = "Fee DEX + flash loan + gas melebihi spread harga";
   } else if (netProfit < minProfit) {
-    rejectReason = "Net profit di bawah lantai max(loan × 0.60%, costFloor)";
+    rejectReason = NET_PROFIT_SKIP_REASON;
   }
 
   return {
@@ -93,6 +95,18 @@ export function estimateTwoDexFlashArb(input: ProfitInput): ProfitResult {
     profitable,
     rejectReason,
   };
+}
+
+function quoteLeg(amountIn: bigint, leg: ReserveQuote): bigint {
+  if (amountIn <= 0n) return 0n;
+  if (leg.v3 && leg.v3.sqrtPriceX96 > 0n && typeof leg.zeroForOne === "boolean") {
+    return quoteLocalV3ExactIn({
+      pool: leg.v3,
+      amountIn,
+      zeroForOne: leg.zeroForOne,
+    }).amountOut;
+  }
+  return getAmountOut(amountIn, leg.reserveIn, leg.reserveOut, leg.feeBps);
 }
 
 export function toOpportunityStatus(result: ProfitResult): Opportunity["status"] {

@@ -145,7 +145,7 @@ export function defaultFlashLoanPlatforms(): Record<FlashLoanProviderId, FlashLo
     uniswap: {
       enabled: false,
       chain: preferredChainForPlatform(FLASH_LOAN_PLATFORMS[2], preferred),
-      feeMode: "pool-005",
+      feeMode: "pool-001",
     },
     balancer: {
       enabled: false,

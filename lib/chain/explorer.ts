@@ -3,9 +3,11 @@ import type { ChainId } from "./networks";
 
 const BSCSCAN_TX = "https://bscscan.com/tx/";
 
+const TX_HASH_RE = /^0x[a-fA-F0-9]{64}$/;
+
 export function isTxHash(value: unknown): value is string {
   if (typeof value !== "string" || !value) return false;
-  return /^0x[a-fA-F0-9]{64}$/.test(value);
+  return TX_HASH_RE.test(value);
 }
 
 const TX_HASH_FIELD_KEYS = [
@@ -36,7 +38,7 @@ const TX_HASH_NEST_KEYS = [
 /** Hash 32-byte yang berdiri sendiri, bukan awalan calldata/revert payload. */
 function isolatedTxHash(value: string): string | null {
   const text = value.trim();
-  if (isTxHash(text)) return text;
+  if (TX_HASH_RE.test(text)) return text;
   const match = text.match(/(?:^|[^a-fA-F0-9xX])(0x[a-fA-F0-9]{64})(?![a-fA-F0-9])/);
   return match ? match[1] : null;
 }

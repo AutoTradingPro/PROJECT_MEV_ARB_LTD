@@ -1,4 +1,5 @@
 import { getAddress } from "ethers";
+import { FLASH_FEE_PPM, feePpmToPct } from "@/src/flashloan/globalProviderSelector";
 import { BALANCER_V2_VAULT } from "@/config/networks";
 import { getChain, type ChainId } from "@/lib/chain/networks";
 import { pairsForChain, type TokenPairConfig } from "@/lib/chain/tokenPairs";
@@ -13,17 +14,16 @@ function addr(value: string): string {
 
 /** Fee flashloan kanonik (persen) — Uniswap memakai mode pool, bukan angka tetap. */
 export const FLASH_LOAN_FEE_PCT: Record<Exclude<FlashLoanProviderId, "uniswap">, number> = {
-  aave: 0.09,
-  /** Kamino K-Lend flash borrow fee (~0.001%). */
-  kamino: 0.001,
-  balancer: 0,
-  sushiswap: 0.3,
+  aave: feePpmToPct(FLASH_FEE_PPM.AAVE_V3),
+  /** Kamino K-Lend: 10 ppm = 0.001%. */
+  kamino: feePpmToPct(FLASH_FEE_PPM.KAMINO),
+  balancer: feePpmToPct(FLASH_FEE_PPM.BALANCER_V2),
+  sushiswap: feePpmToPct(FLASH_FEE_PPM.SUSHI_V2),
 };
 
 export const UNISWAP_FLASH_POOL_FEE_MODES = [
-  { id: "pool-005", label: "Pool 0.05%", feePct: 0.05 },
+  { id: "pool-001", label: "Pool 0.01%", feePct: 0.01 },
   { id: "pool-030", label: "Pool 0.30%", feePct: 0.3 },
-  { id: "pool-100", label: "Pool 1.00%", feePct: 1 },
 ] as const;
 
 export function flashLoanFeePctForProvider(
@@ -301,6 +301,11 @@ export const CHAIN_DEX_REGISTRY: Record<
     primary: "spookyswap",
     dexIds: ["spookyswap", "sushiswap-v2"],
     notes: "SpookySwap + SushiSwap",
+  },
+  linea: {
+    primary: "uniswap-v2",
+    dexIds: ["uniswap-v2", "sushiswap-v2"],
+    notes: "Uniswap + SushiSwap di Linea",
   },
 };
 

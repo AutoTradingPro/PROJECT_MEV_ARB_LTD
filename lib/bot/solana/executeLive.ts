@@ -7,7 +7,7 @@
  */
 import { Connection, PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import type { BotConfig, Opportunity } from "@/lib/bot/types";
-import { solanaMinProfitFloorUsd } from "@/lib/bot/adaptiveMinProfit";
+import { formatNetProfitSkip, solanaMinProfitFloorUsd } from "@/lib/bot/adaptiveMinProfit";
 import { tokenWeiToUsd } from "@/lib/bot/configUnits";
 import { kaminoFlashFeeWei, KAMINO_FLASH_FEE_PCT } from "@/lib/bot/solana/kaminoConstants";
 import { SOLANA_DEX_VENUES } from "@/lib/bot/solana/quotes";
@@ -171,7 +171,7 @@ export async function executeSolanaLiveArb(input: {
   const net = gross > flashFee ? gross - flashFee : 0n;
   const netUsd = tokenWeiToUsd(net.toString(), mints.quoteDecimals, mints.quoteUsd);
   const actualLoanUsd = tokenWeiToUsd(amountIn.toString(), mints.quoteDecimals, mints.quoteUsd);
-  const floor = solanaMinProfitFloorUsd(Math.max(actualLoanUsd, 1));
+  const floor = solanaMinProfitFloorUsd(actualLoanUsd);
 
   console.log(
     `[SOLANA-EXEC] re-quote net≈$${netUsd.toFixed(4)} · lantai≈$${floor.toFixed(4)}` +
@@ -180,8 +180,7 @@ export async function executeSolanaLiveArb(input: {
 
   if (!(netUsd + 1e-9 >= floor) || net <= 0n) {
     throw new Error(
-      `[SKIP] Net live $${netUsd.toFixed(4)} < lantai max(loan×0.10%,$5) $${floor.toFixed(4)} ` +
-        `(setelah re-quote Jupiter · Kamino fee ${KAMINO_FLASH_FEE_PCT}%).`
+      `${formatNetProfitSkip(netUsd, floor)} (setelah re-quote Jupiter · Kamino fee ${KAMINO_FLASH_FEE_PCT}%).`
     );
   }
 

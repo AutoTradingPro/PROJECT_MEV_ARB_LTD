@@ -54,7 +54,7 @@ function armQuickNodeExecutor(readyCount: number): boolean {
  * Jalankan satu siklus Live Scan Solana (independen dari EVM).
  */
 export async function runSolanaWorker(input?: {
-  config?: BotConfig;
+  config?: Partial<BotConfig>;
   pairIds?: string[];
   scanMode?: "single" | "full";
   persist?: boolean;
@@ -83,7 +83,7 @@ export async function runSolanaWorker(input?: {
   const pairIds =
     scanMode === "full"
       ? defaultSolanaPairIds(undefined)
-      : defaultSolanaPairIds(input?.pairIds?.length ? input.pairIds : [config.pairId].filter(Boolean));
+      : defaultSolanaPairIds(input?.pairIds?.length ? input.pairIds : [config.pairId].filter((id): id is string => Boolean(id)));
 
   const [{ opportunities, slot, scanner }, executorHealth] = await Promise.all([
     scanSolanaOpportunities({
