@@ -1,6 +1,6 @@
 import { watch } from "node:fs";
 import path from "node:path";
-import { WebSocketProvider } from "ethers";
+import { JsonRpcProvider, WebSocketProvider } from "ethers";
 import {
   envArbitrumWsUrl,
   envEthereumWsUrl,
@@ -30,7 +30,18 @@ import { hydrateChainQuotaFromDisk } from "../lib/owner/chainQuotaPersist";
 import { OWNER_NODE_CHAIN_IDS } from "../lib/owner/ownerNodeChains";
 import { bindEventScanner, noteSearcherBlock } from "../scanner";
 
-const WSS_RETRY_MS = 12_000;
+const BACKOFF_BASE_MS = 1_000;
+const BACKOFF_MAX_MS = 30_000;
+const FAILURES_BEFORE_SWITCH = 3;
+const HEARTBEAT_MS = 30_000;
+const PONG_TIMEOUT_MS = 10_000;
+const HTTP_PROMOTE_MS = 60_000;
+const OPEN_TIMEOUT_MS = 8_000;
+
+function backoffMs(attempt: number): number {
+  const step = Math.max(0, attempt - 1);
+  return Math.min(BACKOFF_MAX_MS, BACKOFF_BASE_MS * 2 ** Math.min(step, 8));
+}
 let monitorChain: ChainId | null = null;
 let stopChainWss: (() => void) | null = null;
 
@@ -76,9 +87,33 @@ function wssUrls(chainId: ChainId): string[] {
   return uniqueUrls([getChain(chainId).wsUrl || "", ...wssCandidates(chainId)]);
 }
 
+type RpcEndpoint = { url: string; transport: "wss" | "http" };
+
+function endpointList(chainId: ChainId): RpcEndpoint[] {
+  const chain = getChain(chainId);
+  const row = getChainNodeConfig(chainId);
+  const sockets = wssUrls(chainId);
+  const http = uniqueUrls([row.primaryRpc, row.backupRpc, chain.rpcUrl || ""]);
+  const seen = new Set(sockets.map((url) => url.replace(/\/$/, "").toLowerCase()));
+  const list: RpcEndpoint[] = sockets.map((url) => ({ url, transport: "wss" }));
+  for (const url of http) {
+    const key = url.replace(/\/$/, "").toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    list.push({ url, transport: "http" });
+  }
+  return list;
+}
+
+function endpointRole(index: number): string {
+  return index === 0 ? "Primary" : `Cadangan ${index}`;
+}
+
 type SocketLike = {
   on?: (event: string, listener: (...args: unknown[]) => void) => void;
   addEventListener?: (event: string, listener: (ev: Event) => void) => void;
+  ping?: () => void;
+  readyState?: number;
 };
 
 function attachSocketGuards(provider: WebSocketProvider, onDead: (reason: string) => void): void {
@@ -148,36 +183,53 @@ function syncChainSockets(chainId: ChainId): void {
 
 function attachChainWss(chainId: ChainId): () => void {
   const networkId = getChain(chainId).chainId ?? (chainId === "ethereum" ? 1 : chainId === "polygon" ? 137 : 42161);
-  const urls = wssUrls(chainId);
+  const endpoints = endpointList(chainId);
   let stopped = false;
-  let active: WebSocketProvider | null = null;
-  let connecting = false;
+  let active: WebSocketProvider | JsonRpcProvider | null = null;
+  let activeKind: "wss" | "http" | null = null;
+  let endpointIndex = 0;
+  let failCount = 0;
+  let recoveryQueued = false;
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
+  let promoteTimer: ReturnType<typeof setTimeout> | null = null;
+  let stopHeartbeat: (() => void) | null = null;
   let unbindScanner: (() => void) | null = null;
+
+  const clearTimers = () => {
+    if (retryTimer) clearTimeout(retryTimer);
+    if (promoteTimer) clearTimeout(promoteTimer);
+    retryTimer = null;
+    promoteTimer = null;
+    stopHeartbeat?.();
+    stopHeartbeat = null;
+  };
 
   const destroyActive = () => {
     unbindScanner?.();
     unbindScanner = null;
+    stopHeartbeat?.();
+    stopHeartbeat = null;
     const current = active;
     active = null;
+    activeKind = null;
     if (!current) return;
     try {
       current.removeAllListeners();
     } catch {
       /* ignore */
     }
+    const socket = (current as WebSocketProvider).websocket as
+      | { removeAllListeners?: () => void; close?: (code?: number) => void }
+      | undefined;
     try {
-      const socket = current.websocket as { removeAllListeners?: () => void; close?: (code?: number) => void };
-      socket.removeAllListeners?.();
-      socket.close?.(1000);
+      socket?.removeAllListeners?.();
+      socket?.close?.(1000);
     } catch {
       /* ignore */
     }
     try {
       const result = current.destroy() as void | Promise<void>;
-      if (result && typeof result.catch === "function") {
-        void result.catch(() => undefined);
-      }
+      if (result && typeof result.catch === "function") void result.catch(() => undefined);
     } catch {
       /* ignore */
     }
@@ -185,125 +237,249 @@ function attachChainWss(chainId: ChainId): () => void {
 
   const teardown = () => {
     stopped = true;
-    connecting = false;
-    if (retryTimer) clearTimeout(retryTimer);
-    retryTimer = null;
+    recoveryQueued = false;
+    clearTimers();
     destroyActive();
   };
 
-  if (urls.length === 0) {
+  if (endpoints.length === 0) {
     console.warn(`[searcher] WSS ${chainId} kosong — scan event tidak dijalankan tanpa soket`);
     return teardown;
   }
 
   console.log(
-    `[searcher] ${chainId} WSS Primary=${redactEndpoint(urls[0])}${
-      urls[1] ? ` | Cadangan=${redactEndpoint(urls[1])}` : " | Cadangan belum diisi"
-    }`
+    `[searcher] ${chainId} antrian RPC ${endpoints
+      .map((item, index) => `${endpointRole(index)} ${item.transport.toUpperCase()} ${redactEndpoint(item.url)}`)
+      .join(" | ")}`
   );
 
-  const noteWssDown = (reason: string) => {
+  const armPromote = () => {
+    if (promoteTimer) clearTimeout(promoteTimer);
+    promoteTimer = setTimeout(() => {
+      void tryPromoteToWss();
+    }, HTTP_PROMOTE_MS);
+  };
+
+  const startHeartbeat = (provider: WebSocketProvider | JsonRpcProvider, kind: "wss" | "http") => {
+    stopHeartbeat?.();
+    let pongTimer: ReturnType<typeof setTimeout> | null = null;
+    const socket = kind === "wss" ? ((provider as WebSocketProvider).websocket as SocketLike | undefined) : undefined;
+    const clearPong = () => {
+      if (pongTimer) clearTimeout(pongTimer);
+      pongTimer = null;
+    };
+    if (typeof socket?.on === "function") {
+      socket.on("pong", () => clearPong());
+    }
+    const beat = setInterval(() => {
+      if (stopped || active !== provider) return;
+      if (kind === "wss" && typeof socket?.ping === "function" && socket.readyState === 1) {
+        try {
+          socket.ping();
+          clearPong();
+          pongTimer = setTimeout(() => {
+            if (active !== provider) return;
+            void provider.getBlockNumber().catch(() => {
+              if (active === provider) queueRecovery("heartbeat tanpa pong");
+            });
+          }, PONG_TIMEOUT_MS);
+        } catch {
+          queueRecovery("ping gagal");
+        }
+        return;
+      }
+      void provider.getBlockNumber().catch(() => {
+        if (active === provider) queueRecovery("heartbeat rpc gagal");
+      });
+    }, HEARTBEAT_MS);
+    stopHeartbeat = () => {
+      clearInterval(beat);
+      clearPong();
+    };
+  };
+
+  const noteDown = (reason: string, delay: number) => {
     publishLiveSocket(chainId, "none", false);
-    console.warn(`[searcher] ${reason} — tidak ada polling harga. Scan lanjut setelah WSS hidup.`);
+    console.warn(
+      `[searcher] ${reason}. Engine tetap berjalan. Sambung ulang dalam ${Math.round(delay / 1000)}s.`
+    );
+  };
+
+  const queueRecovery = (reason: string) => {
+    if (stopped || recoveryQueued) return;
+    recoveryQueued = true;
+    destroyActive();
+    failCount += 1;
+    let delay = backoffMs(failCount);
+    const current = endpoints[endpointIndex];
+    if (failCount >= FAILURES_BEFORE_SWITCH && endpoints.length > 1) {
+      const previous = endpointRole(endpointIndex);
+      failCount = 0;
+      endpointIndex = (endpointIndex + 1) % endpoints.length;
+      delay = backoffMs(1);
+      const next = endpoints[endpointIndex];
+      console.warn(
+        `[searcher] ${previous} gagal ${FAILURES_BEFORE_SWITCH} kali. Alih ke ${endpointRole(endpointIndex)} ${next.transport.toUpperCase()} (${redactEndpoint(next.url)}).`
+      );
+    } else if (current) {
+      console.warn(
+        `[searcher] ${endpointRole(endpointIndex)} putus (${failCount}/${FAILURES_BEFORE_SWITCH}): ${reason}`
+      );
+    }
+    noteDown(reason, delay);
+    if (retryTimer) clearTimeout(retryTimer);
+    retryTimer = setTimeout(() => {
+      recoveryQueued = false;
+      retryTimer = null;
+      void connectCurrent();
+    }, delay);
+  };
+
+  const openReady = async (provider: WebSocketProvider | JsonRpcProvider): Promise<boolean> => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        provider.getBlockNumber(),
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error("timeout buka RPC")), OPEN_TIMEOUT_MS);
+        }),
+      ]);
+      return true;
+    } catch (error) {
+      console.error(`[searcher] RPC belum siap: ${rpcErrorMessage(error)}`);
+      return false;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   };
 
   const connectAt = async (index: number): Promise<boolean> => {
     if (stopped) return false;
-    const url = urls[index];
-    if (!url) return false;
-    const role = index === 0 ? "Primary" : "Cadangan";
+    const endpoint = endpoints[index];
+    if (!endpoint) return false;
+    const role = endpointRole(index);
     try {
-      const provider = new WebSocketProvider(url, networkId);
-      if (stopped) {
-        try {
+      if (endpoint.transport === "http") {
+        const provider = new JsonRpcProvider(endpoint.url, networkId);
+        if (stopped) {
           void provider.destroy();
-        } catch {
-          /* ignore */
+          return false;
         }
+        active = provider;
+        activeKind = "http";
+        provider.on("error", (error: unknown) => {
+          if (active !== provider) return;
+          queueRecovery(rpcErrorMessage(error) || "HTTP RPC error");
+        });
+        if (!(await openReady(provider))) {
+          if (active === provider) destroyActive();
+          return false;
+        }
+        if (stopped || active !== provider) return false;
+        provider.on("block", (blockNumber: number) => {
+          if (stopped || active !== provider) return;
+          noteSearcherBlock(blockNumber, chainId);
+        });
+        startHeartbeat(provider, "http");
+        failCount = 0;
+        publishLiveSocket(chainId, index === 0 ? "primary" : "backup", true);
+        console.warn(
+          `[searcher] HTTP ${role} aktif (${redactEndpoint(endpoint.url)}). Blok tetap mengalir. WSS dicoba lagi otomatis.`
+        );
+        armPromote();
+        return true;
+      }
+
+      const provider = new WebSocketProvider(endpoint.url, networkId);
+      if (stopped) {
+        void provider.destroy();
         return false;
       }
       active = provider;
+      activeKind = "wss";
+      attachSocketGuards(provider, (reason) => {
+        if (stopped || active !== provider) return;
+        queueRecovery(reason);
+      });
+      if (!(await openReady(provider))) {
+        if (active === provider) destroyActive();
+        return false;
+      }
+      if (stopped || active !== provider) return false;
       unbindScanner?.();
       unbindScanner = bindEventScanner(provider, chainId);
-      attachSocketGuards(provider, (reason) => {
-        if (stopped) return;
-        console.warn(`[searcher] ${role} WSS gagal: ${reason}`);
-        void failover(index, reason);
-      });
       provider.on("block", (blockNumber: number) => {
-        if (stopped) return;
+        if (stopped || active !== provider) return;
         noteSearcherBlock(blockNumber, chainId);
       });
-      markHealthyWss(chainId, url);
+      startHeartbeat(provider, "wss");
+      markHealthyWss(chainId, endpoint.url);
       publishLiveSocket(chainId, index === 0 ? "primary" : "backup", true);
+      failCount = 0;
       console.log(
-        `[searcher] WebSocket ${role} aktif (${redactEndpoint(url)}) · cadangan pool lewat log Sync/Swap`
+        `[searcher] WebSocket ${role} aktif (${redactEndpoint(endpoint.url)}) · ping ${HEARTBEAT_MS / 1000}s · cadangan pool lewat log Sync/Swap`
       );
       return true;
     } catch (error) {
-      console.error(`[searcher] gagal buka WebSocket ${role} (${redactEndpoint(url)}): ${rpcErrorMessage(error)}`);
+      console.error(
+        `[searcher] gagal buka ${role} (${redactEndpoint(endpoint.url)}): ${rpcErrorMessage(error)}`
+      );
+      if (active) destroyActive();
       return false;
     }
   };
 
-  const failover = async (fromIndex: number, reason: string) => {
-    if (stopped || connecting) return;
-    connecting = true;
+  const connectCurrent = async () => {
+    if (stopped || recoveryQueued || active) return;
+    const ok = await connectAt(endpointIndex);
+    if (!ok && !stopped && !recoveryQueued && !active) {
+      queueRecovery("gagal membuka soket");
+    }
+  };
+
+  const tryPromoteToWss = async () => {
+    if (stopped || activeKind !== "http" || recoveryQueued) return;
+    const wssIndex = endpoints.findIndex((item) => item.transport === "wss");
+    if (wssIndex < 0) return;
+    console.log(`[searcher] mencoba naik lagi ke WSS ${endpointRole(wssIndex)}`);
+    const previous = active;
+    const probe = new WebSocketProvider(endpoints[wssIndex].url, networkId);
+    let ready = false;
+    try {
+      ready = await openReady(probe);
+    } catch {
+      ready = false;
+    }
+    if (!ready || stopped || active !== previous || activeKind !== "http") {
+      try {
+        void probe.destroy();
+      } catch {
+        /* ignore */
+      }
+      if (!stopped && activeKind === "http") armPromote();
+      return;
+    }
     destroyActive();
-    noteWssDown(reason);
-
-    for (let index = fromIndex + 1; index < urls.length; index += 1) {
-      const role = index === 0 ? "Primary" : "Cadangan";
-      console.warn(`[searcher] mengalihkan WSS ke ${role} (${redactEndpoint(urls[index])})`);
-      if (await connectAt(index)) {
-        connecting = false;
-        return;
-      }
-    }
-
-    console.error("[searcher] semua WSS gagal. Scan harga berhenti sampai soket tersambung lagi.");
-    connecting = false;
-    if (retryTimer) clearTimeout(retryTimer);
-    retryTimer = setTimeout(() => {
-      void reconnectFromPrimary();
-    }, WSS_RETRY_MS);
+    endpointIndex = wssIndex;
+    failCount = 0;
+    active = probe;
+    activeKind = "wss";
+    attachSocketGuards(probe, (reason) => {
+      if (stopped || active !== probe) return;
+      queueRecovery(reason);
+    });
+    unbindScanner = bindEventScanner(probe, chainId);
+    probe.on("block", (blockNumber: number) => {
+      if (stopped || active !== probe) return;
+      noteSearcherBlock(blockNumber, chainId);
+    });
+    startHeartbeat(probe, "wss");
+    markHealthyWss(chainId, endpoints[wssIndex].url);
+    publishLiveSocket(chainId, wssIndex === 0 ? "primary" : "backup", true);
+    console.log(`[searcher] WSS ${endpointRole(wssIndex)} pulih (${redactEndpoint(endpoints[wssIndex].url)})`);
   };
 
-  const reconnectFromPrimary = async () => {
-    if (stopped || connecting || active) return;
-    connecting = true;
-    console.log("[searcher] mencoba ulang WSS Primary...");
-    for (let index = 0; index < urls.length; index += 1) {
-      if (await connectAt(index)) {
-        connecting = false;
-        return;
-      }
-    }
-    connecting = false;
-    noteWssDown("ulang WSS masih gagal");
-    if (retryTimer) clearTimeout(retryTimer);
-    retryTimer = setTimeout(() => {
-      void reconnectFromPrimary();
-    }, WSS_RETRY_MS);
-  };
-
-  void (async () => {
-    for (let index = 0; index < urls.length; index += 1) {
-      if (stopped) return;
-      if (index > 0) {
-        console.warn(`[searcher] Primary WSS tidak siap, coba Cadangan (${redactEndpoint(urls[index])})`);
-      }
-      if (await connectAt(index)) {
-        return;
-      }
-    }
-    if (stopped) return;
-    noteWssDown("WSS Primary dan Cadangan tidak aktif");
-    retryTimer = setTimeout(() => {
-      void reconnectFromPrimary();
-    }, WSS_RETRY_MS);
-  })();
-
+  void connectCurrent();
   return teardown;
 }
 
