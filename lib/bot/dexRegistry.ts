@@ -48,7 +48,7 @@ export const DEX_ROUTES: DexRoute[] = [
     factory: addr("0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865"),
     feeBps: 25,
     enabled: true,
-    networks: ["bsc"],
+    networks: ["bsc", "linea", "monad"],
     kind: "v3",
   },
   {
@@ -94,7 +94,7 @@ export const DEX_ROUTES: DexRoute[] = [
     factory: addr("0xc35DADB65012eC5796536bD9864eD8773aBc74C4"),
     feeBps: 30,
     enabled: true,
-    networks: ["arbitrum", "polygon", "optimism", "base", "avalanche", "fantom"],
+    networks: ["arbitrum", "polygon", "optimism", "base", "avalanche"],
     v3Factory: addr("0x1af415a1EbA07a4986a52B6f2e7dE7003D82231e"),
   },
   {
@@ -198,6 +198,16 @@ export const DEX_ROUTES: DexRoute[] = [
     kind: "v3",
   },
   {
+    id: "uniswap-linea",
+    label: "Uniswap V3",
+    router: addr("0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a"),
+    factory: addr("0x31FAfd4889FA1269F7a13A66eE0fB458f27D72A9"),
+    feeBps: 30,
+    enabled: true,
+    networks: ["linea"],
+    kind: "v3",
+  },
+  {
     id: "traderjoe",
     label: "Trader Joe",
     router: addr("0x60aE616a2155Ee3d9A68541Ba4544862310933d4"),
@@ -207,13 +217,14 @@ export const DEX_ROUTES: DexRoute[] = [
     networks: ["avalanche"],
   },
   {
-    id: "spookyswap",
-    label: "SpookySwap",
-    router: addr("0xF491e7B69E4244ad4002BC14e878a34207E38c29"),
-    factory: addr("0x152eE697f2E276fA89E96742e9bB9aB1F2E61bF3"),
-    feeBps: 20,
+    id: "uniswap-monad",
+    label: "Uniswap V3",
+    router: addr("0xfe31f71c1b106eac32f1a19239c9a9a72ddfb900"),
+    factory: addr("0x204faca1764b154221e35c0d20abb3c525710498"),
+    feeBps: 30,
     enabled: true,
-    networks: ["fantom"],
+    networks: ["monad"],
+    kind: "v3",
   },
   {
     id: "osmosis",
@@ -297,15 +308,15 @@ export const CHAIN_DEX_REGISTRY: Record<
     dexIds: ["pancake-v3", "pancake-v2", "biswap"],
     notes: "PancakeSwap V3/V2",
   },
-  fantom: {
-    primary: "spookyswap",
-    dexIds: ["spookyswap", "sushiswap-v2"],
-    notes: "SpookySwap + SushiSwap",
+  monad: {
+    primary: "uniswap-monad",
+    dexIds: ["uniswap-monad", "pancake-v3"],
+    notes: "Uniswap V3 + PancakeSwap V3 di Monad. Flash: Aave V3 0.09% dan Uniswap V3 pool fee",
   },
   linea: {
-    primary: "uniswap-v2",
-    dexIds: ["uniswap-v2", "sushiswap-v2"],
-    notes: "Uniswap + SushiSwap di Linea",
+    primary: "uniswap-linea",
+    dexIds: ["uniswap-linea", "pancake-v3"],
+    notes: "Uniswap V3 + PancakeSwap V3 di Linea",
   },
 };
 

@@ -11,7 +11,7 @@ const TAB_LABEL: Record<ScannerChainId, string> = {
   solana: "Solana",
   base: "Base",
   bsc: "BNB Chain",
-  fantom: "Fantom",
+  monad: "Monad",
   arbitrum: "Arbitrum",
   polygon: "Polygon",
   ethereum: "Ethereum",
@@ -37,7 +37,7 @@ function NetworkTab({
       role="tab"
       aria-selected={selected}
       onClick={() => onSelect(id)}
-      className={`flex h-[42px] w-full min-w-0 items-center justify-center gap-1.5 rounded-[10px] border px-2 text-[12px] font-semibold text-slate-200 transition-[background-color,border-color] duration-150 cursor-pointer ${
+      className={`flex min-h-11 w-full min-w-0 items-center justify-center gap-1.5 rounded-[10px] border px-2 text-sm font-semibold text-slate-200 transition-[background-color,border-color] duration-150 cursor-pointer ${
         selected
           ? "border-slate-200/80 bg-slate-800"
           : "border-slate-700/70 bg-[#0b1220] hover:border-slate-300/70 hover:bg-[#162033]"
@@ -74,7 +74,7 @@ export default function ScannerNetworkSwitcher() {
         aria-label="Pilih jaringan scanner"
         className="flex w-full flex-col gap-2 rounded-xl border border-slate-800 bg-slate-950/80 p-2"
       >
-        <div className="grid grid-cols-1 gap-2 min-[481px]:grid-cols-5">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
           {TOP_ROW.map((network) => (
             <NetworkTab
               key={network.id}
@@ -84,7 +84,7 @@ export default function ScannerNetworkSwitcher() {
             />
           ))}
         </div>
-        <div className="mx-auto grid w-full grid-cols-1 gap-2 min-[481px]:w-[calc((100%-2rem)*4/5+1.5rem)] min-[481px]:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
           {BOTTOM_ROW.map((network) => (
             <NetworkTab
               key={network.id}

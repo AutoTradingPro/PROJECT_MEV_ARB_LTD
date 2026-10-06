@@ -12,13 +12,13 @@ export type TradingChainId =
   | "solana"
   | "base"
   | "bsc"
-  | "fantom"
+  | "monad"
   | "arbitrum"
   | "polygon"
   | "ethereum"
   | "linea";
 export type ScannerChainId = TradingChainId;
-export type NativeSymbol = "BNB" | "ETH" | "POL" | "AVAX" | "SOL" | "ATOM" | "FTM";
+export type NativeSymbol = "BNB" | "ETH" | "POL" | "AVAX" | "SOL" | "ATOM" | "MON";
 
 export interface TokenPairConfig {
   id: string;
@@ -56,7 +56,6 @@ const ETH = `${TW}/ethereum/assets`;
 const ARB = `${TW}/arbitrum/assets`;
 const BASE = `${TW}/base/assets`;
 const AVAX = `${TW}/avalanchec/assets`;
-const FTM = `${TW}/fantom/assets`;
 
 function envBscRpc(): string {
   const primary = process.env.NEXT_PUBLIC_BSC_RPC_URL?.trim() || "";
@@ -435,9 +434,9 @@ export function envBaseRpcUrl(): string {
   return firstEnv("BLOCKPI_RPC_BASE", "BASE_RPC_URL", "RPC_HTTP_URL_BASE");
 }
 
-/** Server-only Fantom HTTP. Primary = BlockPi. */
-export function envFantomRpcUrl(): string {
-  return firstEnv("BLOCKPI_RPC_FANTOM", "FANTOM_RPC_URL", "RPC_HTTP_URL_FANTOM");
+/** Server-only Monad HTTP. Primary = BlockPi bila diisi, lalu RPC publik. */
+export function envMonadRpcUrl(): string {
+  return firstEnv("BLOCKPI_RPC_MONAD", "MONAD_RPC_URL", "RPC_HTTP_URL_MONAD");
 }
 
 /** Server-only Linea HTTP. Primary = BlockPi. */
@@ -480,8 +479,8 @@ export function envBaseWsUrl(): string {
   return firstEnv("ONFINALITY_WSS_BASE", "BASE_WSS_URL", "RPC_WSS_URL_BASE");
 }
 
-export function envFantomWsUrl(): string {
-  return firstEnv("ONFINALITY_WSS_FANTOM", "FANTOM_WSS_URL", "RPC_WSS_URL_FANTOM");
+export function envMonadWsUrl(): string {
+  return firstEnv("ONFINALITY_WSS_MONAD", "MONAD_WSS_URL", "RPC_WSS_URL_MONAD");
 }
 
 export function envAvalancheWsUrlFallback(): string {
@@ -632,19 +631,19 @@ export const AVALANCHE_TOKENS = {
   qi: "0x8729438EB15e2C8B576fCc6AeCdB6A45377BF2E5",
 } as const;
 
-export const FANTOM_TOKENS = {
-  wftm: "0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83",
-  usdc: "0x04068DA6C83AFCFA0e13ba15A6696662335D5B75",
-  usdt: "0x049d68029688eAbF473097a2fC38ef61633A3C7A",
-  weth: "0x74b23882a30290451A17c44f4F05243b6b58C76d",
-  wbtc: "0x321162Cd933E2Be498Cd2267a90534A804051b11",
-  boo: "0x841FAD6EAe12c286d1Fd18d1d525DFfA75C7EFFE",
-  spirit: "0x5Cc61A78F164885776AA610fb0FE1257df78E59B",
-  link: "0xb3654dc3D10Ea7645f8319668E8F54d2574FBdC8",
-  dai: "0x8D11eC38a3EB5E956B052f67Da8Bdc9bef8Abf3E",
-  aave: "0x6a07A792ab2965C72a5B8088d3a069A7aC3a93B1",
-  crv: "0x1E4F97b9f9F6905B83B57F61014C76C1D3257785",
+/** Monad mainnet. WMON kanonik, USDC Circle, WETH dari market Aave V3. */
+export const MONAD_TOKENS = {
+  wmon: "0x3bd359C1119dA7Da1D913D1C4D2B7c461115433A",
+  usdc: "0x754704Bc059F8C67012fEd69BC8A327a5aafb603",
+  weth: "0xEE8c0E9f1BFFb4Eb878d8f15f368A02a35481242",
 } as const;
+
+/** Pool Aave V3.7 Monad. Premi flash 0.09% (900 ppm). */
+export const MONAD_AAVE_V3_POOL = "0x69a5F9AD4f96ebf0a0C792dD42a01cC5C0102fef";
+
+/** Uniswap V3 Factory + SwapRouter02 di Monad. */
+export const MONAD_UNISWAP_V3_FACTORY = "0x204faca1764b154221e35c0d20abb3c525710498";
+export const MONAD_UNISWAP_V3_ROUTER = "0xfe31f71c1b106eac32f1a19239c9a9a72ddfb900";
 
 const ICONS = {
   wbnb: `${BSC}/0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c/logo.png`,
@@ -678,7 +677,7 @@ const ICONS = {
   wmatic: `${TW}/polygon/assets/0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270/logo.png`,
   op: `${TW}/optimism/info/logo.png`,
   avax: `${TW}/avalanchec/info/logo.png`,
-  ftm: `${TW}/fantom/info/logo.png`,
+  mon: `${TW}/monad/info/logo.png`,
   atom: `${TW}/cosmos/info/logo.png`,
   cbeth: `${ETH}/0xBe9895146f7AF43049a1D1e81c6670dDA2CBd7E3/logo.png`,
   snx: `${ETH}/0xC011a73ee8576Fb46F5E1c5751cA3B9Fe0af2a6F/logo.png`,
@@ -689,8 +688,6 @@ const ICONS = {
   toshi: `${BASE}/0xAC1Bd2486aAf3B5C0fc3Fd868558b082a531B2B4/logo.png`,
   brett: `${BASE}/0x532f27101965dd16442E59d40670FaF5eBB142E4/logo.png`,
   degen: `${BASE}/0x4ed4E862860beD51a9570b96d89aF5E1B0Efefed/logo.png`,
-  boo: `${FTM}/0x841FAD6EAe12c286d1Fd18d1d525DFfA75C7EFFE/logo.png`,
-  spirit: `${FTM}/0x5Cc61A78F164885776AA610fb0FE1257df78E59B/logo.png`,
   osmo: `${TW}/osmosis/info/logo.png`,
   inj: `${TW}/injective/info/logo.png`,
   scrt: `${TW}/secret/info/logo.png`,
@@ -827,17 +824,31 @@ const LINEA_PAIRS: TokenPairConfig[] = [
   }),
 ];
 
-const FANTOM_PAIRS: TokenPairConfig[] = [
-  pair({ id: "wftm-usdc", label: "WFTM / USDC", baseSymbol: "WFTM", quoteSymbol: "USDC", baseIcon: ICONS.ftm, quoteIcon: ICONS.usdc, baseAddress: FANTOM_TOKENS.wftm, quoteAddress: FANTOM_TOKENS.usdc, baseDecimals: 18, quoteDecimals: 6 }),
-  pair({ id: "wftm-usdt", label: "WFTM / USDT", baseSymbol: "WFTM", quoteSymbol: "USDT", baseIcon: ICONS.ftm, quoteIcon: ICONS.usdt, baseAddress: FANTOM_TOKENS.wftm, quoteAddress: FANTOM_TOKENS.usdt, baseDecimals: 18, quoteDecimals: 6 }),
-  pair({ id: "weth-wftm", label: "WETH / WFTM", baseSymbol: "WETH", quoteSymbol: "WFTM", baseIcon: ICONS.weth, quoteIcon: ICONS.ftm, baseAddress: FANTOM_TOKENS.weth, quoteAddress: FANTOM_TOKENS.wftm, baseDecimals: 18, quoteDecimals: 18 }),
-  pair({ id: "wbtc-wftm", label: "WBTC / WFTM", baseSymbol: "WBTC", quoteSymbol: "WFTM", baseIcon: ICONS.wbtc, quoteIcon: ICONS.ftm, baseAddress: FANTOM_TOKENS.wbtc, quoteAddress: FANTOM_TOKENS.wftm, baseDecimals: 8, quoteDecimals: 18 }),
-  pair({ id: "boo-wftm", label: "BOO / WFTM", baseSymbol: "BOO", quoteSymbol: "WFTM", baseIcon: ICONS.boo, quoteIcon: ICONS.ftm, baseAddress: FANTOM_TOKENS.boo, quoteAddress: FANTOM_TOKENS.wftm, baseDecimals: 18, quoteDecimals: 18 }),
-  pair({ id: "spirit-wftm", label: "SPIRIT / WFTM", baseSymbol: "SPIRIT", quoteSymbol: "WFTM", baseIcon: ICONS.spirit, quoteIcon: ICONS.ftm, baseAddress: FANTOM_TOKENS.spirit, quoteAddress: FANTOM_TOKENS.wftm, baseDecimals: 18, quoteDecimals: 18 }),
-  pair({ id: "link-wftm", label: "LINK / WFTM", baseSymbol: "LINK", quoteSymbol: "WFTM", baseIcon: ICONS.link, quoteIcon: ICONS.ftm, baseAddress: FANTOM_TOKENS.link, quoteAddress: FANTOM_TOKENS.wftm, baseDecimals: 18, quoteDecimals: 18 }),
-  pair({ id: "dai-wftm", label: "DAI / WFTM", baseSymbol: "DAI", quoteSymbol: "WFTM", baseIcon: ICONS.dai, quoteIcon: ICONS.ftm, baseAddress: FANTOM_TOKENS.dai, quoteAddress: FANTOM_TOKENS.wftm, baseDecimals: 18, quoteDecimals: 18 }),
-  pair({ id: "aave-wftm", label: "AAVE / WFTM", baseSymbol: "AAVE", quoteSymbol: "WFTM", baseIcon: ICONS.aave, quoteIcon: ICONS.ftm, baseAddress: FANTOM_TOKENS.aave, quoteAddress: FANTOM_TOKENS.wftm, baseDecimals: 18, quoteDecimals: 18 }),
-  pair({ id: "crv-wftm", label: "CRV / WFTM", baseSymbol: "CRV", quoteSymbol: "WFTM", baseIcon: ICONS.crv, quoteIcon: ICONS.ftm, baseAddress: FANTOM_TOKENS.crv, quoteAddress: FANTOM_TOKENS.wftm, baseDecimals: 18, quoteDecimals: 18 }),
+const MONAD_PAIRS: TokenPairConfig[] = [
+  pair({
+    id: "wmon-usdc",
+    label: "WMON / USDC",
+    baseSymbol: "WMON",
+    quoteSymbol: "USDC",
+    baseIcon: ICONS.mon,
+    quoteIcon: ICONS.usdc,
+    baseAddress: MONAD_TOKENS.wmon,
+    quoteAddress: MONAD_TOKENS.usdc,
+    baseDecimals: 18,
+    quoteDecimals: 6,
+  }),
+  pair({
+    id: "weth-usdc-monad",
+    label: "WETH / USDC",
+    baseSymbol: "WETH",
+    quoteSymbol: "USDC",
+    baseIcon: ICONS.weth,
+    quoteIcon: ICONS.usdc,
+    baseAddress: MONAD_TOKENS.weth,
+    quoteAddress: MONAD_TOKENS.usdc,
+    baseDecimals: 18,
+    quoteDecimals: 6,
+  }),
 ];
 
 /** Mint kanonik Solana mainnet (base58). */
@@ -1112,20 +1123,20 @@ export const TRADING_NETWORKS: Record<TradingChainId, TradingNetworkConfig> = {
     wrappedNative: BASE_TOKENS.weth,
     pairs: BASE_PAIRS,
   },
-  fantom: {
-    id: "fantom",
-    name: "Fantom",
-    shortLabel: "Fantom Opera",
-    chainId: 250,
-    nativeSymbol: "FTM",
-    nativeCurrency: "FTM",
-    rpcUrl: "https://fantom.publicnode.com",
-    wsUrl: "wss://fantom.publicnode.com",
-    rpcUrlFallback: "https://rpcapi.fantom.network",
-    wsUrlFallback: "wss://fantom.publicnode.com",
-    explorerTx: "https://ftmscan.com/tx/",
-    wrappedNative: FANTOM_TOKENS.wftm,
-    pairs: FANTOM_PAIRS,
+  monad: {
+    id: "monad",
+    name: "Monad",
+    shortLabel: "Monad Mainnet",
+    chainId: 143,
+    nativeSymbol: "MON",
+    nativeCurrency: "MON",
+    rpcUrl: "https://rpc.monad.xyz",
+    wsUrl: "wss://rpc.monad.xyz",
+    rpcUrlFallback: "https://rpc1.monad.xyz",
+    wsUrlFallback: "wss://rpc1.monad.xyz",
+    explorerTx: "https://monadscan.com/tx/",
+    wrappedNative: MONAD_TOKENS.wmon,
+    pairs: MONAD_PAIRS,
   },
   linea: {
     id: "linea",
@@ -1147,14 +1158,15 @@ export const TRADING_NETWORKS: Record<TradingChainId, TradingNetworkConfig> = {
 /** Settings / header: BSC tetap tersedia di sini, bukan di switcher scanner. */
 export const TRADING_CHAIN_LIST: TradingNetworkConfig[] = [TRADING_NETWORKS.arbitrum, TRADING_NETWORKS.bsc];
 
-/** Dashboard scanner: 6 rantai tambahan di kiri, lalu Arbitrum / Polygon / Ethereum. */
+/** Dashboard scanner: lima rantai atas, lima bawah. Tiga terakhir tetap Arbitrum / Polygon / Ethereum. */
 export const SCANNER_CHAIN_LIST: TradingNetworkConfig[] = [
   TRADING_NETWORKS.optimism,
   TRADING_NETWORKS.avalanche,
   TRADING_NETWORKS.solana,
   TRADING_NETWORKS.base,
   TRADING_NETWORKS.bsc,
-  TRADING_NETWORKS.fantom,
+  TRADING_NETWORKS.monad,
+  TRADING_NETWORKS.linea,
   TRADING_NETWORKS.arbitrum,
   TRADING_NETWORKS.polygon,
   TRADING_NETWORKS.ethereum,
@@ -1166,7 +1178,7 @@ const TRADING_CHAIN_IDS: readonly TradingChainId[] = [
   "solana",
   "base",
   "bsc",
-  "fantom",
+  "monad",
   "arbitrum",
   "polygon",
   "ethereum",
@@ -1236,7 +1248,7 @@ export function defaultTradingChainId(): TradingChainId {
   if (numeric === 10) return "optimism";
   if (numeric === 43114) return "avalanche";
   if (numeric === 8453) return "base";
-  if (numeric === 250) return "fantom";
+  if (numeric === 143) return "monad";
   if (numeric === 59144) return "linea";
   return "polygon";
 }

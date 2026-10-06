@@ -143,14 +143,17 @@ export default function MevCoreEngineDashboard({ username, onLogout }: MevCoreEn
   };
 
   const activeChain = CORE_CHAINS.find((chain) => chain.id === chainId);
+  const wssConnected = Boolean(liveChain?.connected && liveChain.chainId === chainId);
+  const linkLabel = !activeChain
+    ? ""
+    : wssConnected
+      ? `RPC hidup · WSS ${liveChain?.transport === "backup" ? "cadangan" : "primary"}`
+      : "RPC/WSS menunggu sambungan";
+  const scanLabel =
+    chainId === "monad" ? "WMON/USDC · WETH/USDC" : activeChain?.pair || "";
+  const routeCount = live.rows.length;
   const liveNote = activeChain
-    ? liveChain?.connected && liveChain.transport === "backup"
-      ? `${activeChain.label} · WSS cadangan`
-      : liveChain?.connected && liveChain.transport === "primary"
-        ? `${activeChain.label} · WSS primary`
-        : liveChain?.locked
-          ? `${activeChain.label} · terkunci`
-          : ""
+    ? `${activeChain.label} · ${linkLabel} · scan ${scanLabel}${routeCount > 0 ? ` · ${routeCount} rute live` : " · menunggu siklus"}`
     : "";
   const vaultMatches = vault?.chainId === chainId;
   const lines = live.lines;
@@ -179,6 +182,7 @@ export default function MevCoreEngineDashboard({ username, onLogout }: MevCoreEn
         vaultSymbol={vaultMatches ? vault?.symbol || "" : ""}
         vaultPair={vaultMatches && vault?.pair ? vault.pair : activeChain?.pair || ""}
         liveNote={liveNote}
+        wssConnected={wssConnected}
         onSelectChain={(next) => void onSelectChain(next)}
       />
       <MevCoreFeed rows={live.rows} />

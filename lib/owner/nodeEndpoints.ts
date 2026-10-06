@@ -9,8 +9,8 @@ import {
   envAvalancheRpcUrlFallback,
   envBaseRpcUrl,
   envBaseWsUrl,
-  envFantomRpcUrl,
-  envFantomWsUrl,
+  envMonadRpcUrl,
+  envMonadWsUrl,
   envLineaRpcUrl,
   envLineaWsUrl,
   envAvalancheWsUrl,
@@ -77,8 +77,8 @@ function publicBackup(chainId: ChainId): { rpc: string; wss: string } {
   if (chainId === "base") {
     return { rpc: "https://base.publicnode.com", wss: "wss://base.publicnode.com" };
   }
-  if (chainId === "fantom") {
-    return { rpc: "https://rpcapi.fantom.network", wss: "wss://fantom.publicnode.com" };
+  if (chainId === "monad") {
+    return { rpc: "https://rpc1.monad.xyz", wss: "wss://rpc1.monad.xyz" };
   }
   if (chainId === "solana") {
     return {
@@ -114,8 +114,8 @@ function seedOne(chainId: ChainId): ChainNodeConfig {
             ? envSolanaRpcUrl() || chain.rpcUrl
           : chainId === "base"
             ? envBaseRpcUrl() || chain.rpcUrl
-          : chainId === "fantom"
-            ? envFantomRpcUrl() || chain.rpcUrl
+          : chainId === "monad"
+            ? envMonadRpcUrl() || chain.rpcUrl
           : chainId === "linea"
             ? envLineaRpcUrl() || chain.rpcUrl
           : chain.rpcUrl;
@@ -136,8 +136,8 @@ function seedOne(chainId: ChainId): ChainNodeConfig {
             ? envSolanaWsUrl() || chain.wsUrl
           : chainId === "base"
             ? envBaseWsUrl() || chain.wsUrl
-          : chainId === "fantom"
-            ? envFantomWsUrl() || chain.wsUrl
+          : chainId === "monad"
+            ? envMonadWsUrl() || chain.wsUrl
           : chainId === "linea"
             ? envLineaWsUrl() || chain.wsUrl
           : chain.wsUrl;
@@ -400,7 +400,7 @@ function envPrimaryRpcFor(chainId: ChainId): string {
   if (chainId === "avalanche") return envAvalancheRpcUrl();
   if (chainId === "bsc") return envBscRpcUrl();
   if (chainId === "base") return envBaseRpcUrl();
-  if (chainId === "fantom") return envFantomRpcUrl();
+  if (chainId === "monad") return envMonadRpcUrl();
   if (chainId === "linea") return envLineaRpcUrl();
   return "";
 }
@@ -424,7 +424,7 @@ function envPrimaryWssFor(chainId: ChainId): string {
   if (chainId === "bsc") return envBscWsUrl();
   if (chainId === "solana") return envSolanaWsUrl();
   if (chainId === "base") return envBaseWsUrl();
-  if (chainId === "fantom") return envFantomWsUrl();
+  if (chainId === "monad") return envMonadWsUrl();
   return "";
 }
 

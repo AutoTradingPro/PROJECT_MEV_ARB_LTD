@@ -9,7 +9,13 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { fetchOwnerUser, patchOwnerUser, registerOwnerUser } from "@/lib/users/client";
+import {
+  fetchAuthSession,
+  loginOwnerUser,
+  logoutOwnerSession,
+  patchOwnerUser,
+  registerOwnerUser,
+} from "@/lib/users/client";
 import type { OwnerUser } from "@/lib/owner/types";
 
 export type AuthTab = "login" | "register";
@@ -43,6 +49,8 @@ interface AuthContextValue {
   }) => Promise<void>;
   patchUser: (partial: Partial<AuthUser>) => void;
   logout: () => void;
+  sessionReady: boolean;
+  accessError: string;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -103,11 +111,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
   const [authTab, setAuthTab] = useState<AuthTab>("login");
-
-  useEffect(() => {
-    setUser(readStoredUser());
-    setHydrated(true);
-  }, []);
+  const [sessionReady, setSessionReady] = useState(false);
+  const [accessError, setAccessError] = useState("");
 
   const persistUser = useCallback((next: AuthUser | null) => {
     const normalized = next ? normalizeUser(next) : null;
@@ -119,6 +124,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       /* ignore */
     }
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const hadLocal = Boolean(readStoredUser());
+    void fetchAuthSession()
+      .then((row) => {
+        if (cancelled || !row) return;
+        persistUser(sessionFromOwnerUser(row));
+        setAccessError("");
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        persistUser(null);
+        const message = error instanceof Error ? error.message : "";
+        if (hadLocal && message) setAccessError(message);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setHydrated(true);
+          setSessionReady(true);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [persistUser]);
+
+  useEffect(() => {
+    if (!hydrated || !user) return;
+    const id = window.setInterval(() => {
+      void fetchAuthSession().catch((error: unknown) => {
+        persistUser(null);
+        setAccessError(
+          error instanceof Error ? error.message : "Sesi tidak lagi terdaftar di User List Register."
+        );
+      });
+    }, 5000);
+    return () => window.clearInterval(id);
+  }, [hydrated, persistUser, user]);
 
   const openModal = useCallback((tab: AuthTab = "login") => {
     setAuthTab(tab);
@@ -161,15 +205,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(
     async ({ identifier, password }: { identifier: string; password: string }) => {
-      if (!identifier.trim() || !password) {
-        throw new Error("Username/email dan password wajib diisi.");
-      }
-      await new Promise((r) => setTimeout(r, 400));
-      const isEmail = identifier.includes("@");
-      const username = isEmail ? identifier.split("@")[0] : identifier.trim();
-      const email = isEmail ? identifier.trim() : `${identifier.trim()}@mevarb.local`;
-      const fromDb = await fetchOwnerUser(identifier.trim()).catch(() => null);
-      persistUser(fromDb ? sessionFromOwnerUser(fromDb) : normalizeUser({ username, email }));
+      setAccessError("");
+      const row = await loginOwnerUser({ identifier: identifier.trim(), password });
+      persistUser(sessionFromOwnerUser(row));
       closeModal();
     },
     [closeModal, persistUser]
@@ -200,8 +238,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           "Password harus ≥8 karakter dengan huruf besar, kecil, angka, dan simbol."
         );
       }
-      await registerOwnerUser({ username: username.trim(), email: email.trim() });
-      persistUser(normalizeUser({ username: username.trim(), email: email.trim() }));
+      setAccessError("");
+      const row = await registerOwnerUser({
+        username: username.trim(),
+        email: email.trim(),
+        password,
+      });
+      persistUser(sessionFromOwnerUser(row));
       closeModal();
     },
     [closeModal, persistUser]
@@ -210,6 +253,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     setIsDashboardOpen(false);
     persistUser(null);
+    void logoutOwnerSession();
   }, [persistUser]);
 
   const value = useMemo(
@@ -227,6 +271,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       register,
       patchUser,
       logout,
+      sessionReady,
+      accessError,
     }),
     [
       user,
@@ -242,6 +288,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       register,
       patchUser,
       logout,
+      sessionReady,
+      accessError,
     ]
   );
 

@@ -34,7 +34,7 @@ export default function UserDashboardModal() {
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6"
+      className="ui-modal-root z-[100]"
       role="dialog"
       aria-modal="true"
       aria-labelledby="user-dashboard-title"
@@ -46,7 +46,7 @@ export default function UserDashboardModal() {
         onClick={closeDashboard}
       />
 
-      <div className="relative flex h-[min(92vh,920px)] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-700/80 bg-slate-900/95 shadow-2xl shadow-black/50">
+      <div className="relative flex h-[min(92dvh,920px)] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-700/80 bg-slate-900/95 shadow-2xl shadow-black/50">
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-400/40 to-transparent" />
 
         <div className="flex items-start justify-between gap-3 border-b border-slate-800 px-4 py-4 sm:px-6">
@@ -60,7 +60,7 @@ export default function UserDashboardModal() {
           <button
             type="button"
             onClick={closeDashboard}
-            className="p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -74,7 +74,7 @@ export default function UserDashboardModal() {
                 key={item.id}
                 type="button"
                 onClick={() => setTab(item.id)}
-                className={`shrink-0 rounded-full border px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide cursor-pointer transition-colors ${
+                className={`inline-flex min-h-11 shrink-0 items-center rounded-full border px-3 text-xs font-bold uppercase tracking-wide cursor-pointer transition-colors ${
                   active
                     ? "border-amber-500/50 bg-amber-400/15 text-amber-300"
                     : "border-slate-700 bg-slate-900 text-slate-400 hover:border-slate-500 hover:text-slate-200"

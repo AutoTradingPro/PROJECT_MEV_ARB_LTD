@@ -19,6 +19,9 @@ export {
   isKaminoFlashProvider,
   kaminoFlashFeeUsd,
   kaminoFlashFeeWei,
+  quoteKaminoFlashCycle,
+  resolveSolanaExecutorProgramId,
+  type KaminoFlashCycle,
 } from "@/lib/bot/solana/kaminoConstants";
 
 export {

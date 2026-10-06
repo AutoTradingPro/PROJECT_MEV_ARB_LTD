@@ -15,7 +15,7 @@ const EVM_CHAINS = new Set<ChainId>([
   "avalanche",
   "base",
   "bsc",
-  "fantom",
+  "monad",
 ]);
 
 export function isEvmChainId(chainId: string | undefined | null): boolean {

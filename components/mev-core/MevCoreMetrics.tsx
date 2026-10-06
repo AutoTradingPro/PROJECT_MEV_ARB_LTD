@@ -27,6 +27,7 @@ interface MevCoreMetricsProps {
   vaultSymbol: string;
   vaultPair: string;
   liveNote?: string;
+  wssConnected?: boolean;
   onSelectChain: (chainId: string) => void;
 }
 
@@ -57,6 +58,7 @@ function ChainChip({
   active,
   pending,
   disabled,
+  live,
   onSelect,
 }: {
   id: string;
@@ -64,6 +66,7 @@ function ChainChip({
   active: boolean;
   pending: boolean;
   disabled?: boolean;
+  live?: boolean;
   onSelect: (chainId: string) => void;
 }) {
   return (
@@ -73,7 +76,7 @@ function ChainChip({
       disabled={disabled || pending}
       title={disabled ? `${label} belum masuk scanner` : `Pilih ${label}`}
       onClick={() => onSelect(id)}
-      className={`flex h-[42px] w-full min-w-0 items-center justify-center gap-1.5 rounded-[10px] border px-2 text-[12px] font-semibold transition ${
+      className={`flex min-h-11 w-full min-w-0 items-center justify-center gap-1.5 rounded-[10px] border px-2 text-sm font-semibold transition ${
         active
           ? "border-cyan-300/80 bg-cyan-400/15 text-cyan-100 shadow-[0_0_16px_rgba(34,211,238,0.18)]"
           : "border-slate-700/70 bg-[#0b1220] text-slate-200 hover:border-cyan-400/40"
@@ -88,6 +91,9 @@ function ChainChip({
         unoptimized
       />
       <span className="min-w-0 truncate">{label}</span>
+      {live ? (
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.85)]" />
+      ) : null}
     </button>
   );
 }
@@ -123,6 +129,7 @@ export default function MevCoreMetrics({
   vaultSymbol,
   vaultPair,
   liveNote,
+  wssConnected = false,
   onSelectChain,
 }: MevCoreMetricsProps) {
   const eth = useAnimatedNumber(profitEth, 4);
@@ -160,7 +167,7 @@ export default function MevCoreMetrics({
 
       <article className={`${CARD_FRAME} flex h-full flex-col`}>
         <div className={`${CARD_BODY} flex h-full flex-col p-4`}>
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-col items-start justify-between gap-3 sm:flex-row">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
               Active Multi-Chain Status
@@ -179,7 +186,7 @@ export default function MevCoreMetrics({
           </div>
         </div>
         <div className="mt-3 flex flex-1 flex-col justify-center gap-2">
-          <div className="grid grid-cols-5 gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
             {TOP_CHAINS.map((chain) => (
               <ChainChip
                 key={chain.id}
@@ -187,11 +194,12 @@ export default function MevCoreMetrics({
                 label={chain.label}
                 active={chain.id === activeChainId}
                 pending={pendingChainId === chain.id}
+                live={wssConnected && chain.id === activeChainId}
                 onSelect={onSelectChain}
               />
             ))}
           </div>
-          <div className="grid grid-cols-5 gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
             {BOTTOM_CHAINS.map((chain) => (
               <ChainChip
                 key={chain.id}
@@ -199,6 +207,7 @@ export default function MevCoreMetrics({
                 label={chain.label}
                 active={chain.id === activeChainId}
                 pending={pendingChainId === chain.id}
+                live={wssConnected && chain.id === activeChainId}
                 onSelect={onSelectChain}
               />
             ))}

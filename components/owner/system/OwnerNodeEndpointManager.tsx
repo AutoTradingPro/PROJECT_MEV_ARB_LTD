@@ -238,7 +238,7 @@ export default function OwnerNodeEndpointManager() {
       <div>
         <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-500/80">FlashLoan & RPC Provider</p>
         <h2 className="mt-1 text-lg font-black tracking-wide text-slate-100">
-          Ethereum · Polygon · Arbitrum · Optimism · Avalanche · Solana · Base · BNB · Fantom · Linea
+          Ethereum · Polygon · Arbitrum · Optimism · Avalanche · Solana · Base · BNB · Monad · Linea
         </h2>
         <p className="mt-1 max-w-3xl text-sm text-slate-400">
           Kartu per jaringan: Primary RPC, WSS Stream, Backup RPC. Toggle ON/OFF manual — tidak
@@ -365,7 +365,7 @@ export default function OwnerNodeEndpointManager() {
             Solana: getSlot.
           </p>
         </div>
-        <div className="overflow-x-auto">
+        <div className="touch-scroll">
           <table className="w-full min-w-[720px] border-collapse text-left text-xs">
             <thead>
               <tr className="border-b border-slate-800 bg-slate-950/80 text-[10px] uppercase tracking-wide text-slate-500">

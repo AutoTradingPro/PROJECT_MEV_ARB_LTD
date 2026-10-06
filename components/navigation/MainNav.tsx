@@ -81,7 +81,7 @@ export default function MainNav() {
   const activeId = resolveActiveNavId(pathname);
 
   return (
-    <nav className="flex items-center gap-1 overflow-x-auto py-1 scrollbar-none sm:gap-1.5">
+    <nav className="touch-scroll flex w-full items-center gap-1 py-1 scrollbar-none sm:gap-1.5 lg:w-auto">
       {MAIN_NAV_ITEMS.map((item) => {
         const href = item.href ?? sectionHref(item.id);
         const isActive = activeId === item.id;
@@ -91,7 +91,7 @@ export default function MainNav() {
           <Link
             key={item.id}
             href={href}
-            className={`relative inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium transition-all sm:text-sm ${itemTone(
+            className={`relative inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-3 text-sm font-medium transition-all ${itemTone(
               item.id,
               isActive
             )}`}

@@ -6,12 +6,28 @@ import {
   base,
   bsc,
   evmos,
-  fantom,
   mainnet,
   optimism,
   polygon,
   type AppKitNetwork,
 } from "@reown/appkit/networks";
+import { defineChain } from "viem";
+
+/** Monad mainnet. Paket AppKit ini belum mengekspor chain 143. */
+const monad = defineChain({
+  id: 143,
+  name: "Monad",
+  nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
+  rpcUrls: {
+    default: {
+      http: ["https://rpc.monad.xyz"],
+      webSocket: ["wss://rpc.monad.xyz"],
+    },
+  },
+  blockExplorers: {
+    default: { name: "Monadscan", url: "https://monadscan.com" },
+  },
+});
 
 export const appKitProjectId = (
   process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ||
@@ -20,7 +36,7 @@ export const appKitProjectId = (
   ""
 ).trim();
 
-/** Ethereum, Polygon, Arbitrum, Optimism, Avalanche, Cosmos/EVM (Evmos), Base, BNB Chain, Fantom. */
+/** Ethereum, Polygon, Arbitrum, Optimism, Avalanche, Cosmos/EVM (Evmos), Base, BNB Chain, Monad. */
 export const appKitNetworks = [
   mainnet,
   polygon,
@@ -30,7 +46,7 @@ export const appKitNetworks = [
   evmos,
   base,
   bsc,
-  fantom,
+  monad,
 ] as [AppKitNetwork, ...AppKitNetwork[]];
 
 const defaultChain = (process.env.NEXT_PUBLIC_DEFAULT_CHAIN || "polygon").trim().toLowerCase();
@@ -47,7 +63,9 @@ export const appKitDefaultNetwork: AppKitNetwork =
     }
     if (defaultChain === "base" || defaultChain === "8453") return network.id === base.id;
     if (defaultChain === "bsc" || defaultChain === "bnb" || defaultChain === "56") return network.id === bsc.id;
-    if (defaultChain === "fantom" || defaultChain === "250") return network.id === fantom.id;
+    if (defaultChain === "monad" || defaultChain === "143") {
+      return network.id === monad.id;
+    }
     return false;
   }) ?? polygon;
 
@@ -60,7 +78,7 @@ const publicRpcs: Record<number, string> = {
   [evmos.id]: "https://evmos.publicnode.com",
   [base.id]: "https://mainnet.base.org",
   [bsc.id]: "https://bsc-dataseed.binance.org",
-  [fantom.id]: "https://fantom.publicnode.com",
+  [monad.id]: "https://rpc.monad.xyz",
 };
 
 export const wagmiAdapter = new WagmiAdapter({
@@ -77,7 +95,7 @@ export const wagmiAdapter = new WagmiAdapter({
     [evmos.id]: http(publicRpcs[evmos.id]),
     [base.id]: http(publicRpcs[base.id]),
     [bsc.id]: http(publicRpcs[bsc.id]),
-    [fantom.id]: http(publicRpcs[fantom.id]),
+    [monad.id]: http(publicRpcs[monad.id]),
   },
 });
 

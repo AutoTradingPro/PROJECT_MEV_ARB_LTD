@@ -10,7 +10,7 @@ export const OWNER_NODE_CHAIN_IDS = [
   "solana",
   "base",
   "bsc",
-  "fantom",
+  "monad",
   "linea",
 ] as const;
 

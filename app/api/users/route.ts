@@ -1,6 +1,8 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+import { NextResponse } from "next/server";
+import { applySessionCookie } from "@/lib/auth/sessionCookie";
 import { findUser, listUsers, patchUser, registerUser, toOwnerUser } from "@/lib/db";
 import { appendServerLog } from "@/lib/bot/serverLog";
 import type { OwnerUserTier } from "@/lib/owner/types";
@@ -21,7 +23,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  let body: { username?: string; email?: string; wallet?: string; telegramId?: string };
+  let body: { username?: string; email?: string; password?: string; wallet?: string; telegramId?: string };
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -32,10 +34,13 @@ export async function POST(request: Request) {
     const user = registerUser({
       username: body.username ?? "",
       email: body.email ?? "",
+      password: body.password ?? "",
       wallet: body.wallet,
       telegramId: body.telegramId,
     });
-    return Response.json({ user: toOwnerUser(user) }, { status: 201 });
+    const response = NextResponse.json({ user: toOwnerUser(user) }, { status: 201 });
+    await applySessionCookie(response, user);
+    return response;
   } catch (err) {
     const message = err instanceof Error ? err.message : "Registrasi gagal.";
     const status = message.includes("sudah terdaftar") ? 409 : 400;

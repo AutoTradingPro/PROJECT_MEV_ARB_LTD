@@ -10,7 +10,8 @@ import {
   type ReactNode,
 } from "react";
 import { useAppKit, useDisconnect } from "@reown/appkit/react";
-import { useAccount, useSwitchChain } from "wagmi";
+import { useAccount, useConnect, useSwitchChain, type Connector } from "wagmi";
+import { injected } from "wagmi/connectors";
 import { useNetwork } from "@/context/NetworkContext";
 import { getChain, type ChainId } from "@/lib/chain/networks";
 import { executorConfigForChainId, portalChainFromEvmId } from "@/lib/vault/executors";
@@ -53,11 +54,55 @@ interface WalletContextValue {
 
 const WalletContext = createContext<WalletContextValue | null>(null);
 
+function isInjectedConnector(connector: Connector): boolean {
+  return connector.type === "injected" || connector.id === "injected" || connector.id === "io.metamask";
+}
+
+function pickMetaMaskConnector(connectors: readonly Connector[]): Connector | undefined {
+  const injectedConnectors = connectors.filter(isInjectedConnector);
+  return (
+    injectedConnectors.find((connector) => connector.id === "io.metamask") ??
+    injectedConnectors.find((connector) => /metamask/i.test(connector.name)) ??
+    injectedConnectors[0]
+  );
+}
+
+function connectErrorMessage(err: unknown): string {
+  const raw = err instanceof Error ? err.message : "";
+  if (/user rejected|user denied|rejected the request/i.test(raw)) {
+    return "Permintaan koneksi ditolak di MetaMask. Buka MetaMask lalu setujui akun.";
+  }
+  if (/provider not found|no provider|metamask/i.test(raw) && /not (found|installed|detected)/i.test(raw)) {
+    return "MetaMask tidak terdeteksi. Pastikan ekstensi aktif, lalu muat ulang halaman.";
+  }
+  return formatWalletError(err);
+}
+
+async function connectInjectedMetaMask(
+  connectors: readonly Connector[],
+  connectAsync: (parameters: { connector: Connector }) => Promise<unknown>,
+  openModal: () => Promise<void>,
+) {
+  if (!hasEthereumProvider()) {
+    await openModal();
+    return;
+  }
+  const connector =
+    pickMetaMaskConnector(connectors) ??
+    injected({
+      target: "metaMask",
+      shimDisconnect: true,
+    });
+  console.log(`[WALLET] MetaMask injected · ${connector.id || connector.name}`);
+  await connectAsync({ connector });
+}
+
 export function WalletProvider({ children }: { children: ReactNode }) {
   const { chain, chainId } = useNetwork();
   const { open } = useAppKit();
   const { disconnect: disconnectAppKit } = useDisconnect();
   const { switchChainAsync } = useSwitchChain();
+  const { connectors, connectAsync } = useConnect();
   const { address: wagmiAddress, isConnected, isReconnecting, chainId: wagmiChainId } = useAccount();
 
   const address = wagmiAddress ?? "";
@@ -125,14 +170,13 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
     setIsOpeningModal(true);
     try {
-      await open({ view: "Connect" });
+      await connectInjectedMetaMask(connectors, connectAsync, () => open({ view: "Connect" }));
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Koneksi dompet ditolak.";
-      setError(message);
+      setError(connectErrorMessage(err));
     } finally {
       setIsOpeningModal(false);
     }
-  }, [chainId, isOpeningModal, open, refreshBalance]);
+  }, [chainId, connectors, connectAsync, isOpeningModal, open, refreshBalance]);
 
   const disconnect = useCallback(() => {
     void disconnectAppKit();
@@ -176,9 +220,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         setIsOpeningModal(true);
         try {
           setError(null);
-          await open({ view: "Connect" });
+          await connectInjectedMetaMask(connectors, connectAsync, () => open({ view: "Connect" }));
         } catch (err) {
-          setError(err instanceof Error ? err.message : "Koneksi dompet ditolak.");
+          setError(connectErrorMessage(err));
           return;
         } finally {
           setIsOpeningModal(false);
@@ -208,7 +252,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         setError(formatWalletError(err));
       }
     },
-    [address, evmChainId, isConnected, open, refreshBalance, switchChainAsync]
+    [address, connectors, connectAsync, evmChainId, isConnected, open, refreshBalance, switchChainAsync]
   );
 
   // Reset status connecting saat pindah jaringan agar tombol header tidak terkunci.

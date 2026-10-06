@@ -30,7 +30,7 @@ export default function OwnerUserTable({
   onToggleSuspend,
 }: OwnerUserTableProps) {
   return (
-    <div className="overflow-x-auto rounded-2xl border border-slate-800">
+    <div className="touch-scroll rounded-2xl border border-slate-800">
       <table className="w-full min-w-[1480px] border-collapse text-left text-xs">
         <thead>
           <tr className="border-b border-slate-800 bg-slate-950/80 text-[10px] uppercase tracking-wide text-slate-500">

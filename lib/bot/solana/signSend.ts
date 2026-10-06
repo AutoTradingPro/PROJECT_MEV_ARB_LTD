@@ -37,6 +37,40 @@ export function solanaConnection(): Connection {
   });
 }
 
+function simulationFailure(err: unknown, logs: string[]): string {
+  const tail = logs.slice(-6).join(" | ");
+  const blob = `${JSON.stringify(err)} ${tail}`.toLowerCase();
+  if (blob.includes("slippage")) return `slippage · ${tail || JSON.stringify(err)}`;
+  if (blob.includes("insufficient") || blob.includes("liquidity")) {
+    return `likuiditas · ${tail || JSON.stringify(err)}`;
+  }
+  return tail || JSON.stringify(err);
+}
+
+/**
+ * Dry-run sebelum broadcast. Mengganti blockhash agar tx Jupiter yang belum
+ * ditandatangani tetap bisa diukur compute unit-nya.
+ */
+export async function simulateSolanaSwapTransaction(swapTransactionBase64: string): Promise<{
+  unitsConsumed: number;
+  logs: string[];
+}> {
+  const raw = Buffer.from(swapTransactionBase64, "base64");
+  const tx = VersionedTransaction.deserialize(raw);
+  const sim = await solanaConnection().simulateTransaction(tx, {
+    replaceRecentBlockhash: true,
+    sigVerify: false,
+    commitment: "processed",
+  });
+  const logs = sim.value.logs ?? [];
+  if (sim.value.err) {
+    throw new Error(`[SOLANA-SIM] ${simulationFailure(sim.value.err, logs)}`);
+  }
+  const unitsConsumed = sim.value.unitsConsumed ?? 0;
+  console.log(`[SOLANA-SIM] OK · compute ${unitsConsumed} CU · broadcast belum dikirim`);
+  return { unitsConsumed, logs };
+}
+
 /** Deserialize base64 Jupiter swap tx, sign, return base64 signed. */
 export async function signSolanaSwapTransactionBase64(
   swapTransactionBase64: string,
@@ -53,6 +87,7 @@ export async function signAndSubmitSolanaSwap(input: {
   swapTransactionBase64: string;
   skipPreflight?: boolean;
 }): Promise<string> {
+  await simulateSolanaSwapTransaction(input.swapTransactionBase64);
   const signed = await signSolanaSwapTransactionBase64(input.swapTransactionBase64);
   const fee = await resolveSolanaPriorityFeeMicroLamports().catch(() => null);
   console.log(

@@ -71,7 +71,7 @@ export default function MevCoreFeed({ rows }: { rows: FeedRow[] }) {
                 {LABEL[row.status]}
               </span>
             </div>
-            <dl className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
+            <dl className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
               <div>
                 <dt className="text-slate-500">Spread</dt>
                 <dd className={`font-mono ${tone(row.spreadPct)}`}>{money(row.spreadPct, 4)}%</dd>
@@ -96,7 +96,7 @@ export default function MevCoreFeed({ rows }: { rows: FeedRow[] }) {
           </p>
         ) : null}
       </div>
-      <div className="hidden overflow-x-auto md:block">
+      <div className="touch-scroll hidden md:block">
         <table className="w-full min-w-[640px] text-left text-xs sm:text-sm">
           <thead className="text-[11px] uppercase tracking-wider text-slate-500">
             <tr>

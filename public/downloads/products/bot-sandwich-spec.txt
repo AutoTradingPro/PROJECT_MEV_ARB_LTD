@@ -1,0 +1,14 @@
+MEV ARB — Dokumen Spesifikasi
+Produk: Bot Sandwich Attack (Sandwich Attack Bots)
+Status: Advanced / Locked
+ID: sandwich
+
+Ringkasan
+Modul eksekusi MEV berlapis untuk desk yang sudah lolos review risiko. Akses terkunci hingga kebijakan operator dan kuota gas disetujui.
+
+Cakupan rilis
+- Urutan eksekusi berlapis dan syarat review risiko
+- Kuota gas sebagai gerbang akses
+- Modul tidak aktif dari katalog Product
+
+Dokumen ini adalah paket spesifikasi modul, bukan installer.

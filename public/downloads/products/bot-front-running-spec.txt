@@ -1,0 +1,14 @@
+MEV ARB — Dokumen Spesifikasi
+Produk: Bot Front-Running (Front-Running Bots)
+Status: Advanced / Locked
+ID: front-running
+
+Ringkasan
+Modul lanjutan untuk memantau aliran order publik dan kompetisi latensi di mempool. Belum dibuka untuk operator standar.
+
+Cakupan rilis
+- Deskripsi alur pantauan order publik
+- Batas latensi dan syarat akses desk
+- Modul tetap terkunci sampai kebijakan operator disetujui
+
+Dokumen ini adalah paket spesifikasi modul, bukan installer.

@@ -178,8 +178,8 @@ export default function ArbitrageMatrixTable({
   const showPairRows = rowsVisible;
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-800/80 min-h-[280px]">
-      <table className="w-full text-left border-collapse text-xs font-mono min-w-[960px]">
+    <div className="touch-scroll rounded-xl border border-slate-800/80 min-h-[280px]">
+      <table className="w-full text-left border-collapse text-xs font-mono min-w-[960px] sm:text-sm">
         <thead>
           <tr className="border-b border-slate-800 text-slate-400 uppercase text-[10px] bg-slate-950/50">
             <th className="py-3 px-3 w-10">No.</th>

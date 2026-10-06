@@ -15,11 +15,11 @@ const NETWORKS = [
   { id: 8453, name: "Base" },
   { id: 56, name: "BSC" },
   { id: 43114, name: "Avalanche" },
-  { id: 250, name: "Fantom" },
+  { id: 143, name: "Monad" },
   { id: 324, name: "zkSync Era" },
 ] as const;
 
-const SWITCHABLE = new Set<number>([1, 10, 56, 137, 250, 8453, 42161, 43114]);
+const SWITCHABLE = new Set<number>([1, 10, 56, 137, 143, 8453, 42161, 43114]);
 
 function parseAmount(value: string, decimals: number): bigint | null {
   const trimmed = value.trim();

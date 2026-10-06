@@ -27,7 +27,7 @@ export default function SettingsButton() {
         aria-expanded={settingsOpen}
         aria-label="Pengaturan"
         onClick={toggleSettings}
-        className={`flex h-10 items-center gap-2 pl-3 pr-1 rounded-full border shadow-sm transition-all cursor-pointer box-border ${
+        className={`box-border flex h-11 items-center gap-2 rounded-full border pl-3 pr-1 shadow-sm transition-all cursor-pointer ${
           settingsOpen
             ? isLight
               ? "border-blue-300 bg-slate-50"

@@ -1,0 +1,14 @@
+MEV ARB — Dokumen Spesifikasi
+Produk: Bot Likuidasi (Liquidation Bots)
+Status: Advanced / Locked
+ID: liquidation
+
+Ringkasan
+Otomasi pemantauan posisi undercollateralized di pasar lending. Modul advanced menunggu integrasi protokol dan limit eksposur.
+
+Cakupan rilis
+- Sumber posisi lending yang dipantau
+- Ambang health factor dan limit eksposur
+- Integrasi protokol belum dibuka
+
+Dokumen ini adalah paket spesifikasi modul, bukan installer.

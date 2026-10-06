@@ -18,5 +18,11 @@ arbitrum = "${BLOCKPI_RPC_ARBITRUM}"
 optimism = "${BLOCKPI_RPC_OPTIMISM}"
 base = "${BLOCKPI_RPC_BASE}"
 avalanche = "${BLOCKPI_RPC_AVALANCHE}"
-fantom = "${BLOCKPI_RPC_FANTOM}"
 linea = "${BLOCKPI_RPC_LINEA}"
+# Monad mainnet. Alias: forge script --rpc-url monad --chain-id 143
+monad = "https://rpc.monad.xyz"
+
+# Opt-in: FOUNDRY_PROFILE=monad forge script ... --broadcast
+[profile.monad]
+chain_id = 143
+eth_rpc_url = "https://rpc.monad.xyz"

@@ -128,7 +128,7 @@ export default function PricingCheckoutModal({
 
   return (
     <div
-      className="fixed inset-0 z-[120] flex items-end justify-center p-0 sm:items-center sm:p-6"
+      className="ui-modal-root z-[120] items-end sm:items-center"
       role="dialog"
       aria-modal="true"
       aria-labelledby="pricing-checkout-title"
@@ -142,7 +142,7 @@ export default function PricingCheckoutModal({
         }}
       />
 
-      <div className="relative flex max-h-[94vh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl border border-cyan-400/20 bg-[#071019]/96 shadow-[0_24px_80px_rgba(0,0,0,0.55),0_0_40px_rgba(34,211,238,0.08)] sm:rounded-3xl">
+      <div className="relative flex max-h-[min(94dvh,52rem)] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl border border-cyan-400/20 bg-[#071019]/96 shadow-[0_24px_80px_rgba(0,0,0,0.55),0_0_40px_rgba(34,211,238,0.08)] sm:rounded-3xl">
         <div className="h-px w-full bg-gradient-to-r from-transparent via-cyan-400/60 to-transparent" />
 
         <div className="flex items-start justify-between gap-3 px-5 pb-2 pt-5 sm:px-6">
@@ -158,7 +158,7 @@ export default function PricingCheckoutModal({
             type="button"
             onClick={onClose}
             disabled={processing}
-            className="cursor-pointer rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-slate-800 hover:text-white disabled:opacity-40"
+            className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-xl text-slate-300 transition-colors hover:bg-slate-800 hover:text-white disabled:opacity-40"
           >
             <X className="h-5 w-5" />
           </button>

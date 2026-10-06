@@ -2,14 +2,18 @@
  * Eksekusi live Solana arb: Jupiter dual-swap (beli venue A → jual venue B).
  *
  * Mode saat ini: wallet-funded (modal dari saldo quote mint di PRIVATE_KEY_SOLANA).
- * Fee Kamino 0.001% dihitung di PnL; flash-borrow CPI Kamino (klend-sdk) ditunda
- * karena peer deps SDK bentrok — dual-swap live sudah bisa kirim tx on-chain.
+ * Sebelum broadcast, net harus menutup repay = borrow + fee Kamino 0.001% (ceil),
+ * dan setiap swap melewati simulateTransaction.
  */
 import { Connection, PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import type { BotConfig, Opportunity } from "@/lib/bot/types";
 import { formatNetProfitSkip, solanaMinProfitFloorUsd } from "@/lib/bot/adaptiveMinProfit";
 import { tokenWeiToUsd } from "@/lib/bot/configUnits";
-import { kaminoFlashFeeWei, KAMINO_FLASH_FEE_PCT } from "@/lib/bot/solana/kaminoConstants";
+import {
+  KAMINO_FLASH_FEE_PCT,
+  quoteKaminoFlashCycle,
+  resolveSolanaExecutorProgramId,
+} from "@/lib/bot/solana/kaminoConstants";
 import { SOLANA_DEX_VENUES } from "@/lib/bot/solana/quotes";
 import {
   jupiterBuildSwapTransaction,
@@ -96,6 +100,10 @@ export type SolanaLiveExecResult = {
   netProfitWei: string;
   mode: "jupiter-dual-wallet";
   kaminoFeePct: number;
+  programId: string;
+  borrowAmount: string;
+  feeAmount: string;
+  repayAmount: string;
 };
 
 /**
@@ -116,6 +124,7 @@ export async function executeSolanaLiveArb(input: {
   }
   const owner = keypair.publicKey;
   const connection = solanaConnection();
+  const programId = resolveSolanaExecutorProgramId();
   const mints = resolveMints(opp, config);
 
   let amountIn = BigInt(opp.amountInWei || "0");
@@ -137,9 +146,9 @@ export async function executeSolanaLiveArb(input: {
   const sellDexes = venueDexes(String(opp.sellDex || opp.sellExchange || ""));
 
   console.log(
-    `[SOLANA-EXEC] Kamino fee-model ${KAMINO_FLASH_FEE_PCT}% · mode=jupiter-dual-wallet` +
+    `[SOLANA-EXEC] target ${programId} · fee-model ${KAMINO_FLASH_FEE_PCT}% · mode=jupiter-dual-wallet` +
       ` · ${opp.tokenPair} · ${opp.buyExchange}→${opp.sellExchange}` +
-      ` · in=${amountIn.toString()}`
+      ` · borrow=${amountIn.toString()}`
   );
 
   const buyQuote = await jupiterQuoteRaw({
@@ -166,21 +175,22 @@ export async function executeSolanaLiveArb(input: {
     throw new Error("[SOLANA-EXEC] Quote jual (leg-2) Jupiter gagal / kosong.");
   }
   const quoteOut = BigInt(String(sellQuote.outAmount));
-  const flashFee = kaminoFlashFeeWei(amountIn);
-  const gross = quoteOut > amountIn ? quoteOut - amountIn : 0n;
-  const net = gross > flashFee ? gross - flashFee : 0n;
+  const cycle = quoteKaminoFlashCycle({ borrowAmount: amountIn, amountOut: quoteOut });
+  const net = cycle.netProfit;
   const netUsd = tokenWeiToUsd(net.toString(), mints.quoteDecimals, mints.quoteUsd);
   const actualLoanUsd = tokenWeiToUsd(amountIn.toString(), mints.quoteDecimals, mints.quoteUsd);
   const floor = solanaMinProfitFloorUsd(actualLoanUsd);
 
   console.log(
-    `[SOLANA-EXEC] re-quote net≈$${netUsd.toFixed(4)} · lantai≈$${floor.toFixed(4)}` +
-      ` · loan≈$${actualLoanUsd.toFixed(2)} · out=${quoteOut.toString()}`
+    `[SOLANA-EXEC] borrow=${cycle.borrowAmount} · fee=${cycle.feeAmount} · repay=${cycle.repayAmount}` +
+      ` · out=${cycle.amountOut} · net=${cycle.netProfit}` +
+      ` · net≈$${netUsd.toFixed(4)} · lantai≈$${floor.toFixed(4)} · loan≈$${actualLoanUsd.toFixed(2)}`
   );
 
-  if (!(netUsd + 1e-9 >= floor) || net <= 0n) {
+  if (quoteOut < cycle.repayAmount || net <= 0n || !(netUsd + 1e-9 >= floor)) {
     throw new Error(
-      `${formatNetProfitSkip(netUsd, floor)} (setelah re-quote Jupiter · Kamino fee ${KAMINO_FLASH_FEE_PCT}%).`
+      `${formatNetProfitSkip(netUsd, floor)} ` +
+        `(out ${quoteOut} < repay ${cycle.repayAmount} = borrow ${cycle.borrowAmount} + fee ${cycle.feeAmount}).`
     );
   }
 
@@ -217,6 +227,16 @@ export async function executeSolanaLiveArb(input: {
       `[SOLANA-EXEC] Leg-2 quote gagal setelah leg-1 land. sig1=${sig1} — cek posisi base di wallet.`
     );
   }
+  const cycle2 = quoteKaminoFlashCycle({
+    borrowAmount: amountIn,
+    amountOut: BigInt(String(sellQuote2.outAmount)),
+  });
+  if (cycle2.netProfit <= 0n || cycle2.amountOut < cycle2.repayAmount) {
+    throw new Error(
+      `[SOLANA-EXEC] Leg-2 tidak menutup repay ${cycle2.repayAmount} ` +
+        `(out ${cycle2.amountOut}, fee ${cycle2.feeAmount}). sig1=${sig1} — tidak di-broadcast.`
+    );
+  }
 
   const sellTx = await jupiterBuildSwapTransaction({
     quoteResponse: sellQuote2,
@@ -232,8 +252,12 @@ export async function executeSolanaLiveArb(input: {
     signatures: [sig1, sig2],
     amountIn: amountIn.toString(),
     amountOut: String(sellQuote2.outAmount),
-    netProfitWei: net.toString(),
+    netProfitWei: cycle2.netProfit.toString(),
     mode: "jupiter-dual-wallet",
     kaminoFeePct: KAMINO_FLASH_FEE_PCT,
+    programId,
+    borrowAmount: cycle2.borrowAmount.toString(),
+    feeAmount: cycle2.feeAmount.toString(),
+    repayAmount: cycle2.repayAmount.toString(),
   };
 }

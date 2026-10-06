@@ -31,7 +31,7 @@ export default function VaultGate({ busy, error, onUnlock }: VaultGateProps) {
       <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/40 to-black/70" />
       <form
         onSubmit={handleSubmit}
-        className="relative z-10 w-[min(92vw,420px)] rounded-3xl border border-amber-400/40 bg-slate-950/80 p-6 shadow-[0_0_80px_rgba(212,175,55,0.28)] backdrop-blur-xl"
+        className="relative z-10 max-h-[min(92dvh,40rem)] w-[min(92vw,420px)] overflow-y-auto rounded-3xl border border-amber-400/40 bg-slate-950/80 p-5 shadow-[0_0_80px_rgba(212,175,55,0.28)] backdrop-blur-xl sm:p-6"
       >
         <div className="mb-5 flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-amber-400/50 bg-amber-500/10 text-amber-300">

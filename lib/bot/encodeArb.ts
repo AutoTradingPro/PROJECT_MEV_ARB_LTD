@@ -13,6 +13,8 @@ import { resolveKaminoFlashLoanRoute } from "@/lib/bot/solana/kamino";
 import { getPair } from "@/lib/chain/tokenPairs";
 import type { ChainId } from "@/lib/chain/networks";
 import { defaultTradingChainId } from "@/config/networks";
+import { appendServerLog } from "@/lib/bot/serverLog";
+import { MONAD_EXECUTOR_ADDRESS } from "@/lib/vault/executors";
 import type { BotConfig, Opportunity } from "./types";
 
 function asAddress(value: string): string {
@@ -171,6 +173,24 @@ export function buildExecuteCalldata(
 
   if (chainId === "optimism" || chainId === "avalanche" || chainId === "base") {
     return buildRedeployedMevExecutorCalldata(opp, config, withdrawTo, chainId);
+  }
+
+  if (chainId === "monad") {
+    const built = buildBalancerExecuteCalldata(opp, config, withdrawTo);
+    const expected = MONAD_EXECUTOR_ADDRESS.toLowerCase();
+    const to = (built?.to || "").toLowerCase();
+    const line =
+      built && to === expected
+        ? `[MONAD 143] executeFlashLoan to=${built.to}`
+        : `[MONAD 143] executeFlashLoan to=${built?.to || "kosong"}`;
+    console.log(line);
+    appendServerLog({
+      level: to === expected ? "exec" : "warn",
+      source: "MONAD",
+      chainId: "monad",
+      message: line,
+    });
+    return built;
   }
 
   // BNB Chain tidak boleh memakai Balancer V2. Jalur ini selalu flash swap V2/V3.

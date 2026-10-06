@@ -19,12 +19,12 @@ export default function MevCoreConsole({ lines, connected = false }: { lines: Co
           {connected ? "live · ws :4101" : "menunggu stream"}
         </span>
       </div>
-      <div className="max-h-52 space-y-1 overflow-y-auto px-4 py-3 font-mono text-[12px] leading-relaxed">
+      <div className="max-h-64 space-y-1 overflow-auto px-3 py-3 font-mono text-xs leading-relaxed sm:px-4 sm:text-sm">
         {lines.length === 0 ? (
           <p className="text-slate-500">Menunggu log simulasi, validasi spread, bribe, dan hasil eksekusi.</p>
         ) : null}
         {lines.map((line) => (
-          <p key={line.id} className={TONE[line.tone]}>
+          <p key={line.id} className={`break-words ${TONE[line.tone]}`}>
             <span className="text-emerald-700">{line.time}</span>{" "}
             <span className="text-emerald-300">[{line.tag}]</span> {line.message}
           </p>

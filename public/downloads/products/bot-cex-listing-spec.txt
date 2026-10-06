@@ -1,0 +1,14 @@
+MEV ARB — Dokumen Spesifikasi
+Produk: Bot CEX Listing (Centralized Exchange)
+Status: Advanced / Locked
+ID: cex-listing
+
+Ringkasan
+Peringatan dan otomasi listing di bursa terpusat. Modul advanced menunggu konektor API venue dan kebijakan kepatuhan desk.
+
+Cakupan rilis
+- Jenis peringatan listing
+- Konektor API venue yang masih tertunda
+- Syarat kepatuhan sebelum modul dibuka
+
+Dokumen ini adalah paket spesifikasi modul, bukan installer.

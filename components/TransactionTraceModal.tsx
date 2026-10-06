@@ -126,7 +126,7 @@ export default function TransactionTraceModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-6"
+      className="ui-modal-root z-[120]"
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
@@ -138,7 +138,7 @@ export default function TransactionTraceModal({
         onClick={onClose}
       />
 
-      <div className="relative w-full max-w-3xl max-h-[min(92vh,860px)] overflow-y-auto rounded-2xl border border-slate-700/80 bg-[#0b1220] shadow-2xl shadow-black/60">
+      <div className="relative w-full max-w-3xl max-h-[min(92dvh,860px)] overflow-y-auto rounded-2xl border border-slate-700/80 bg-[#0b1220] shadow-2xl shadow-black/60">
         <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-slate-800 bg-[#0b1220]/95 px-5 sm:px-6 py-3.5 backdrop-blur">
           <div>
             <h2 id={titleId} className="text-[15px] font-semibold tracking-wide text-white">
@@ -152,7 +152,7 @@ export default function TransactionTraceModal({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
             aria-label="Tutup"
           >
             <X className="w-5 h-5" />

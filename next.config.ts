@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Wrapper desktop/mobile (src-tauri, capacitor.config.json) menjalankan server
+  // Node ini, lalu membuka http://127.0.0.1:4100. `output: "export"` tidak dipakai:
+  // Route Handler membaca request, cookie sesi, redirects, dan proxy membutuhkan server.
   output: "standalone",
   serverExternalPackages: ["pino", "pino-pretty", "lokijs", "encoding"],
   images: {

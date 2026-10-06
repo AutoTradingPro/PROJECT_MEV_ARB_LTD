@@ -1,0 +1,10 @@
+{
+  "appId": "com.mevarb.core",
+  "appName": "MEV Core Engine",
+  "webDir": "desktop/shell",
+  "server": {
+    "url": "http://127.0.0.1:4100",
+    "cleartext": true,
+    "androidScheme": "http"
+  }
+}

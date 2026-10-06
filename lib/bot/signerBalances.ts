@@ -134,7 +134,7 @@ export function nativeGasWarning(chainId: ChainId): string {
 
 export function nativeSymbolForChain(chainId: ChainId): NativeSymbol {
   const symbol = getChain(chainId).nativeSymbol;
-  if (symbol === "BNB" || symbol === "POL" || symbol === "AVAX" || symbol === "ATOM" || symbol === "FTM" || symbol === "SOL") {
+  if (symbol === "BNB" || symbol === "POL" || symbol === "AVAX" || symbol === "ATOM" || symbol === "MON" || symbol === "SOL") {
     return symbol;
   }
   return "ETH";

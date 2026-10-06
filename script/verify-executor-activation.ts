@@ -7,7 +7,12 @@
  *   npx tsx --env-file=.env.local script/verify-executor-activation.ts --live
  */
 import { BALANCER_V2_VAULT } from "@/config/networks";
-import { kaminoFlashFeeWei } from "@/lib/bot/solana/kaminoConstants";
+import {
+  KAMINO_KLEND_PROGRAM_ID,
+  kaminoFlashFeeWei,
+  quoteKaminoFlashCycle,
+  resolveSolanaExecutorProgramId,
+} from "@/lib/bot/solana/kaminoConstants";
 import { SOLANA_POPULAR_PAIR_IDS } from "@/lib/bot/solana/pairs";
 import { describeSolanaExecutor, pingSolanaExecutor } from "@/lib/bot/solana/executor";
 import { redactEndpoint } from "@/lib/bot/rpc";
@@ -20,7 +25,6 @@ import { flashRepayFromPpm } from "@/lib/bot/dexMath";
 import { estimateTwoDexFlashArb } from "@/lib/bot/profitEngine";
 import {
   bestFlashloanForTradingChain,
-  FANTOM_EXECUTOR_SKIP_REASON,
   flashloanExecutionBlock,
   rankFlashloanProvidersForChain,
 } from "@/src/flashloan/globalProviderSelector";
@@ -33,7 +37,7 @@ const EXPECTED = [
   "base",
   "bsc",
   "avalanche",
-  "fantom",
+  "monad",
   "linea",
 ] as const;
 
@@ -69,7 +73,7 @@ const LOCKED_WINNERS: Record<string, { id: string; feePpm: number; vault: boolea
   base: { id: "uniswap-v3", feePpm: 100, vault: false },
   bsc: { id: "pancakeswap-v3", feePpm: 100, vault: false },
   linea: { id: "pancakeswap-v3", feePpm: 100, vault: false },
-  fantom: { id: "sushiswap-v2", feePpm: 3000, vault: false },
+  monad: { id: "uniswap-v3", feePpm: 100, vault: false },
 };
 
 console.log("Executor EVM");
@@ -118,8 +122,8 @@ for (const row of rows) {
 if (rankFlashloanProvidersForChain(56).some((item) => item.id === "balancer-v2")) {
   fail("BNB Chain masih mengizinkan Balancer V2");
 }
-if (flashloanExecutionBlock("fantom") !== FANTOM_EXECUTOR_SKIP_REASON) {
-  fail("alasan skip Fantom berubah");
+if (flashloanExecutionBlock("monad") !== null) {
+  fail("Monad masih diblokir dari eksekusi");
 }
 
 const winnerCases: Array<[string, number | undefined, string, number]> = [
@@ -134,7 +138,8 @@ const winnerCases: Array<[string, number | undefined, string, number]> = [
   ["bsc", 3000, "pancakeswap-v3", 3000],
   ["avalanche", undefined, "aave-v3", 900],
   ["optimism", undefined, "aave-v3", 900],
-  ["fantom", undefined, "sushiswap-v2", 3000],
+  ["monad", undefined, "uniswap-v3", 100],
+  ["monad", 3000, "aave-v3", 900],
   ["solana", undefined, "kamino", 10],
 ];
 for (const [chain, poolFee, id, feePpm] of winnerCases) {
@@ -172,6 +177,23 @@ if (program.programId !== "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD") {
 }
 if (program.feePct !== 0.001) fail(`fee Kamino bukan 0.001%`);
 if (kaminoFlashFeeWei(100_000n) !== 1n) fail("kaminoFlashFeeWei(100000) bukan 1");
+if (kaminoFlashFeeWei(100_001n) !== 2n) fail("kaminoFlashFeeWei(100001) tidak dibulatkan ke atas");
+const cycle = quoteKaminoFlashCycle({ borrowAmount: 1_000_000n, amountOut: 1_000_020n });
+if (cycle.feeAmount !== 10n || cycle.repayAmount !== 1_000_010n || cycle.netProfit !== 10n) {
+  fail(`siklus Kamino borrow/fee/repay/net salah: ${cycle.feeAmount}/${cycle.repayAmount}/${cycle.netProfit}`);
+}
+const short = quoteKaminoFlashCycle({ borrowAmount: 1_000_000n, amountOut: 1_000_005n });
+if (short.netProfit !== 0n) fail("net harus nol bila out tidak menutup repay");
+const envProgram = (
+  process.env.SOLANA_EXECUTOR_PROGRAM_ID ||
+  process.env.NEXT_PUBLIC_SOLANA_PROGRAM_ID ||
+  ""
+).trim();
+const resolvedProgram = resolveSolanaExecutorProgramId();
+if (!envProgram && resolvedProgram !== KAMINO_KLEND_PROGRAM_ID) {
+  fail(`fallback program bukan Kamino: ${resolvedProgram}`);
+}
+if (!resolvedProgram) fail("program Solana kosong");
 if (program.loanPct !== 2) fail("rasio Solana bukan 2%");
 if (SOLANA_POPULAR_PAIR_IDS.length < 1) fail("daftar pair Solana kosong");
 

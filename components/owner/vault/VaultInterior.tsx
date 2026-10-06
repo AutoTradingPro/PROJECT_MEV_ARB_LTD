@@ -206,7 +206,7 @@ export default function VaultInterior({
           </p>
         ) : null}
 
-        <div className="overflow-x-auto">
+        <div className="touch-scroll">
           <table className="w-full min-w-[860px] text-left text-sm">
             <thead>
               <tr className="border-b border-slate-800 text-[11px] uppercase tracking-wider text-slate-500">

@@ -29,7 +29,7 @@ export function CashLedgerTable({
       <div className="border-b border-slate-800 px-4 py-3">
         <h3 className="text-sm font-bold tracking-wide text-slate-100">{title}</h3>
       </div>
-      <div className="max-h-[32rem] overflow-auto">
+      <div className="touch-scroll max-h-[32rem]">
         <table className="w-full min-w-[760px] border-collapse text-left text-xs">
           <thead className="sticky top-0 z-10">
             <tr className="border-b border-slate-800 bg-slate-950 text-[10px] uppercase tracking-wide text-slate-500">
@@ -94,7 +94,7 @@ export default function FinanceLinesTable({
       <div className="border-b border-slate-800 px-4 py-3">
         <h3 className="text-sm font-bold tracking-wide text-slate-100">{title}</h3>
       </div>
-      <div className="overflow-x-auto">
+      <div className="touch-scroll">
         <table className="w-full min-w-[640px] border-collapse text-left text-xs">
           <thead>
             <tr className="border-b border-slate-800 bg-slate-950/80 text-[10px] uppercase tracking-wide text-slate-500">

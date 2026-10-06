@@ -82,7 +82,7 @@ export default function PnLAnalyticsPanel({
           <p className="font-mono text-slate-100 font-bold mt-1">#{lastBlock || "—"}</p>
         </div>
       </div>
-      <div className="overflow-x-auto">
+      <div className="touch-scroll">
         <table className="w-full text-left text-[11px] font-mono">
           <thead>
             <tr className="text-slate-500 uppercase text-[10px] border-b border-slate-800">

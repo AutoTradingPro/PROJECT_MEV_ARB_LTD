@@ -1,0 +1,24 @@
+[package]
+name = "mev-core-engine"
+version = "0.1.0"
+description = "Desktop wrapper for the MEV Core Engine local server"
+authors = ["MEV ARB"]
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+name = "mev_core_engine"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

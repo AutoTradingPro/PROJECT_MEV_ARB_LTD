@@ -16,7 +16,7 @@ import {
   solanaMinProfitFloorUsd,
 } from "@/lib/bot/adaptiveMinProfit";
 import { defaultSolanaPairIds } from "@/lib/bot/solana/pairs";
-import { KAMINO_FLASH_FEE_PCT, kaminoFlashFeeWei } from "@/lib/bot/solana/kaminoConstants";
+import { KAMINO_FLASH_FEE_PCT, quoteKaminoFlashCycle } from "@/lib/bot/solana/kaminoConstants";
 import { ensureSolanaLiveSlotMonitor } from "@/lib/bot/solana/liveSlot";
 import {
   estimateLiquidityUsd,
@@ -285,8 +285,9 @@ async function scanOneSolanaPair(input: {
     // Jangan invent gross dari spot — itu sumber "cuan semu" LST (bSOL/SOL, dll).
   }
 
-  const flashFee = kaminoFlashFeeWei(amountIn);
-  const net = gross > flashFee ? gross - flashFee : 0n;
+  const cycle = quoteKaminoFlashCycle({ borrowAmount: amountIn, amountOut });
+  const flashFee = cycle.feeAmount;
+  const net = cycle.netProfit;
   const grossUsd = tokenWeiToUsd(gross.toString(), quoteDecimals, quoteUsd);
   const feeUsd = tokenWeiToUsd(flashFee.toString(), quoteDecimals, quoteUsd);
   const netUsd = tokenWeiToUsd(net.toString(), quoteDecimals, quoteUsd);

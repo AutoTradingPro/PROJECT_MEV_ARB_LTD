@@ -16,6 +16,8 @@ export const UNISWAP_V3_FACTORY: Partial<Record<ChainId, string>> = {
   base: "0x33128a8fC17869897dcE68Ed026d694621f6FDfD",
   bsc: "0xdB1d10011AD0Ff90774D0C6Bb92e5C5c8b4461F7",
   avalanche: "0x740b1c1de25031C31FF4fC9A62f554A55cdC1baD",
+  linea: "0x31FAfd4889FA1269F7a13A66eE0fB458f27D72A9",
+  monad: "0x204faca1764b154221e35c0d20abb3c525710498",
 };
 
 /** Fee tier Uniswap V3 (hundredths of a bip). */

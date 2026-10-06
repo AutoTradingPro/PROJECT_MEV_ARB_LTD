@@ -185,7 +185,7 @@ export default function OperationalConfigBar({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7">
         {fields.map(({ key, label, prefix, suffix, step }) => (
           <label key={key} className="block min-w-0">
             <span className="text-[10px] text-slate-500 uppercase tracking-wide block mb-1 truncate">
@@ -266,7 +266,7 @@ export default function OperationalConfigBar({
                     [key]: parsed,
                   });
                 }}
-                className={`w-full theme-input rounded-lg py-2 font-mono text-sm focus:outline-none focus:border-amber-400/40 ${
+                className={`ui-field w-full theme-input rounded-lg font-mono focus:outline-none focus:border-amber-400/40 ${
                   prefix ? "pl-6 pr-2" : suffix ? "pl-2 pr-6" : "px-2"
                 }`}
               />
@@ -321,7 +321,7 @@ export default function OperationalConfigBar({
               readOnly
               tabIndex={-1}
               value={estNet.toFixed(2)}
-              className={`w-full theme-input rounded-lg py-2 pl-6 pr-2 font-mono text-sm cursor-default ${
+              className={`ui-field w-full theme-input rounded-lg pl-6 pr-2 font-mono cursor-default ${
                 estNet >= 0 ? "text-emerald-300" : "text-red-300"
               }`}
             />

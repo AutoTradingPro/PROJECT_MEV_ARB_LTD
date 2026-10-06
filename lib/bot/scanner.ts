@@ -20,6 +20,7 @@ import {
   formatAutoExecuteQueueLine,
   formatAutoSignalSkipLine,
   formatAutoSpreadWaitLine,
+  formatMonadScanCycle,
   formatRuntimeScanLine,
   orderAutoExecuteQueue,
   scanPairHighlights,
@@ -337,6 +338,7 @@ const UNI_FEE_CACHE_MS = 60_000;
 const lastNativeUsd = new Map<string, number>();
 let lastPairScopeLog = "";
 let lastEventSignature = "";
+let lastMonadScanBlock = -1;
 
 function resetScannerLocals(): void {
   lastSignerBanner = "";
@@ -681,6 +683,12 @@ export async function scanOpportunities(options?: ScanOptions): Promise<Opportun
     const gasSymbol = nativeSymbolForChain(chainId);
     const gasBalances =
       signerBalances?.nativeSymbol === gasSymbol ? signerBalances : null;
+    if (chainId === "monad" && block !== lastMonadScanBlock) {
+      lastMonadScanBlock = block;
+      const cycleLine = formatMonadScanCycle({ block, opportunities: nextOpportunities });
+      console.log(cycleLine);
+      appendServerLog({ level: "scan", source: "MONAD", chainId: "monad", message: cycleLine });
+    }
     if (eventDriven) {
       const signature = `${chainId}:${readyCount}:${Math.round(maxSpreadBps)}:${nextOpportunities.length}`;
       if (signature === lastEventSignature) return nextOpportunities;

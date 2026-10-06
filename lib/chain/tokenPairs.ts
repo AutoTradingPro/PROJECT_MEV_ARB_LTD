@@ -41,7 +41,7 @@ export const CHAIN_PAIRS: Record<ChainId, TokenPairConfig[]> = {
   base: tradingPairsForChain("base"),
   avalanche: tradingPairsForChain("avalanche"),
   optimism: tradingPairsForChain("optimism"),
-  fantom: tradingPairsForChain("fantom"),
+  monad: tradingPairsForChain("monad"),
   linea: tradingPairsForChain("linea"),
   cosmos: COSMOS_LEGACY_PAIRS,
   solana: tradingPairsForChain("solana"),

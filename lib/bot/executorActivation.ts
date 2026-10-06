@@ -10,6 +10,23 @@ import {
   type TradingChainId,
 } from "@/config/networks";
 import {
+  publicAvalancheArbitrageExecutor,
+  publicBaseArbitrageExecutor,
+  publicLineaArbitrageExecutor,
+  publicMonadArbitrageExecutor,
+  publicOptimismArbitrageExecutor,
+  publicPolygonArbitrageExecutor,
+} from "@/lib/chain/publicEnv";
+import {
+  AVALANCHE_EXECUTOR_ADDRESS,
+  BASE_EXECUTOR_ADDRESS,
+  EXECUTOR_BY_CHAIN_ID,
+  LINEA_EXECUTOR_ADDRESS,
+  MONAD_EXECUTOR_ADDRESS,
+  OPTIMISM_EXECUTOR_ADDRESS,
+  POLYGON_EXECUTOR_ADDRESS,
+} from "@/lib/vault/executors";
+import {
   bestFlashloanForTradingChain,
   feePpmToPct,
 } from "@/src/flashloan/globalProviderSelector";
@@ -51,7 +68,7 @@ const EVM_ROWS: Array<Omit<EvmExecutorActivation, "flashloanProviderId" | "flash
     label: "Optimism",
     nativeSymbol: "ETH",
     envKeys: ["NEXT_PUBLIC_OPTIMISM_ARBITRAGE_EXECUTOR", "OPTIMISM_ARBITRAGE_EXECUTOR"],
-    fallbackAddress: "",
+    fallbackAddress: OPTIMISM_EXECUTOR_ADDRESS,
   },
   {
     chainId: "polygon",
@@ -59,7 +76,7 @@ const EVM_ROWS: Array<Omit<EvmExecutorActivation, "flashloanProviderId" | "flash
     label: "Polygon",
     nativeSymbol: "POL",
     envKeys: ["NEXT_PUBLIC_POLYGON_ARBITRAGE_EXECUTOR", "POLYGON_BALANCER_FLASH_ARB", "BALANCER_FLASH_ARB_POLYGON"],
-    fallbackAddress: "",
+    fallbackAddress: POLYGON_EXECUTOR_ADDRESS,
   },
   {
     chainId: "base",
@@ -67,7 +84,7 @@ const EVM_ROWS: Array<Omit<EvmExecutorActivation, "flashloanProviderId" | "flash
     label: "Base",
     nativeSymbol: "ETH",
     envKeys: ["NEXT_PUBLIC_BASE_ARBITRAGE_EXECUTOR", "BASE_ARBITRAGE_EXECUTOR"],
-    fallbackAddress: "",
+    fallbackAddress: BASE_EXECUTOR_ADDRESS,
   },
   {
     chainId: "bsc",
@@ -88,15 +105,15 @@ const EVM_ROWS: Array<Omit<EvmExecutorActivation, "flashloanProviderId" | "flash
     label: "Avalanche",
     nativeSymbol: "AVAX",
     envKeys: ["NEXT_PUBLIC_AVALANCHE_ARBITRAGE_EXECUTOR", "AVALANCHE_ARBITRAGE_EXECUTOR"],
-    fallbackAddress: "",
+    fallbackAddress: AVALANCHE_EXECUTOR_ADDRESS,
   },
   {
-    chainId: "fantom",
-    evmChainId: 250,
-    label: "Fantom",
-    nativeSymbol: "FTM",
-    envKeys: ["NEXT_PUBLIC_FANTOM_ARBITRAGE_EXECUTOR", "FANTOM_ARBITRAGE_EXECUTOR"],
-    fallbackAddress: "",
+    chainId: "monad",
+    evmChainId: 143,
+    label: "Monad",
+    nativeSymbol: "MON",
+    envKeys: ["NEXT_PUBLIC_MONAD_ARBITRAGE_EXECUTOR", "MONAD_ARBITRAGE_EXECUTOR"],
+    fallbackAddress: MONAD_EXECUTOR_ADDRESS,
   },
   {
     chainId: "linea",
@@ -104,7 +121,7 @@ const EVM_ROWS: Array<Omit<EvmExecutorActivation, "flashloanProviderId" | "flash
     label: "Linea",
     nativeSymbol: "ETH",
     envKeys: ["NEXT_PUBLIC_LINEA_ARBITRAGE_EXECUTOR", "LINEA_ARBITRAGE_EXECUTOR"],
-    fallbackAddress: "",
+    fallbackAddress: LINEA_EXECUTOR_ADDRESS,
   },
   {
     chainId: "arbitrum",
@@ -153,14 +170,32 @@ export function evmExecutorActivation(chainId: string | undefined): EvmExecutorA
   return evmExecutorActivations().find((row) => row.chainId === key) ?? null;
 }
 
+/**
+ * Akses statis supaya Next meng-inline NEXT_PUBLIC_* ke bundle client.
+ * `process.env[key]` tidak ikut ter-inline dan jadi kosong di browser.
+ */
+function inlinedPublicExecutor(chainId: string): string {
+  if (chainId === "linea") return publicLineaArbitrageExecutor();
+  if (chainId === "monad") return publicMonadArbitrageExecutor();
+  if (chainId === "polygon") return publicPolygonArbitrageExecutor();
+  if (chainId === "optimism") return publicOptimismArbitrageExecutor();
+  if (chainId === "base") return publicBaseArbitrageExecutor();
+  if (chainId === "avalanche") return publicAvalancheArbitrageExecutor();
+  return "";
+}
+
 export function resolveEvmExecutorAddress(chainId: string | undefined): string {
   const row = evmExecutorActivation(chainId);
   if (!row) return "";
+  const inlined = inlinedPublicExecutor(row.chainId);
+  if (usableExecutor(inlined)) return inlined;
   for (const key of row.envKeys) {
     const value = process.env[key]?.trim() ?? "";
     if (usableExecutor(value)) return value;
   }
-  return usableExecutor(row.fallbackAddress) ? row.fallbackAddress : "";
+  if (usableExecutor(row.fallbackAddress)) return row.fallbackAddress;
+  const mapped = EXECUTOR_BY_CHAIN_ID[row.evmChainId]?.address ?? "";
+  return usableExecutor(mapped) ? mapped : "";
 }
 
 export function resolveEvmFlashPool(chainId: string | undefined): string {

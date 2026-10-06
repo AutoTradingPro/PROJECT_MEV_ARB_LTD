@@ -2,6 +2,7 @@
 
 import { useMemo, useState, type FormEvent } from "react";
 import { LoaderCircle, UserPlus } from "lucide-react";
+import PasswordField from "@/components/auth/PasswordField";
 import GoogleIcon from "@/components/auth/GoogleIcon";
 import { useAuth } from "@/context/AuthContext";
 
@@ -20,7 +21,9 @@ export default function RegisterForm() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -54,7 +57,7 @@ export default function RegisterForm() {
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           placeholder="trader_pro"
-          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-amber-400/50 transition-colors"
+          className="ui-field w-full bg-slate-950 border border-slate-800 rounded-xl px-4 text-white placeholder-slate-600 focus:outline-none focus:border-amber-400/50 transition-colors"
         />
       </label>
 
@@ -66,19 +69,19 @@ export default function RegisterForm() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="email@domain.com"
-          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-amber-400/50 transition-colors"
+          className="ui-field w-full bg-slate-950 border border-slate-800 rounded-xl px-4 text-white placeholder-slate-600 focus:outline-none focus:border-amber-400/50 transition-colors"
         />
       </label>
 
       <label className="block space-y-1.5">
         <span className="text-xs text-slate-400 font-medium">Password</span>
-        <input
-          type="password"
-          autoComplete="new-password"
+        <PasswordField
+          name="password"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="••••••••"
-          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-amber-400/50 transition-colors"
+          onChange={setPassword}
+          visible={showPassword}
+          onToggle={() => setShowPassword((current) => !current)}
+          autoComplete="new-password"
         />
         <p className="text-[10px] text-slate-500 leading-relaxed">
           Gunakan kombinasi huruf besar, huruf kecil, angka, dan simbol (min. 8 karakter).
@@ -104,16 +107,16 @@ export default function RegisterForm() {
 
       <label className="block space-y-1.5">
         <span className="text-xs text-slate-400 font-medium">Password Confirmation</span>
-        <input
-          type="password"
-          autoComplete="new-password"
+        <PasswordField
+          name="confirmPassword"
           value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
-          placeholder="••••••••"
-          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-amber-400/50 transition-colors"
+          onChange={setConfirmPassword}
+          visible={showConfirmPassword}
+          onToggle={() => setShowConfirmPassword((current) => !current)}
+          autoComplete="new-password"
         />
         {confirmPassword.length > 0 && confirmPassword !== password && (
-          <p className="text-[10px] text-red-400">Password tidak cocok.</p>
+          <p className="text-sm text-red-400">Password tidak cocok.</p>
         )}
       </label>
 
@@ -126,7 +129,7 @@ export default function RegisterForm() {
       <button
         type="submit"
         disabled={loading || !allStrong}
-        className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 font-bold text-sm flex items-center justify-center gap-2 hover:from-emerald-400 hover:to-teal-300 transition-all cursor-pointer disabled:opacity-50"
+        className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 text-sm font-bold text-slate-950 hover:from-emerald-400 hover:to-teal-300 transition-all cursor-pointer disabled:opacity-50"
       >
         {loading ? <LoaderCircle className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
         {loading ? "Membuat akun…" : "Create Account"}
@@ -141,7 +144,7 @@ export default function RegisterForm() {
       <button
         type="button"
         onClick={handleGoogle}
-        className="w-full py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-200 font-bold text-sm flex items-center justify-center gap-2.5 hover:bg-slate-900 hover:border-slate-600 transition-all cursor-pointer"
+        className="flex min-h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-slate-700 bg-slate-950 text-sm font-bold text-slate-200 hover:bg-slate-900 hover:border-slate-600 transition-all cursor-pointer"
       >
         <GoogleIcon />
         Create Account with Google

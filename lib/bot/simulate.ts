@@ -141,7 +141,7 @@ const BLOCKPI_ENV: Partial<Record<ChainId, string>> = {
   optimism: "BLOCKPI_RPC_OPTIMISM",
   avalanche: "BLOCKPI_RPC_AVALANCHE",
   base: "BLOCKPI_RPC_BASE",
-  fantom: "BLOCKPI_RPC_FANTOM",
+  monad: "BLOCKPI_RPC_MONAD",
   linea: "BLOCKPI_RPC_LINEA",
 };
 

@@ -926,6 +926,10 @@ export default function ControlCenter() {
         setTxNotify({ id: `err-${Date.now()}`, tone: "error", title: "Calldata gagal", message });
         return "fail";
       }
+      if (chainId === "monad") {
+        console.log(`[MONAD 143] tombol eksekusi · to=${json.to}`);
+        push("exec", `[MONAD 143] executeFlashLoan to=${json.to}`);
+      }
       const txHash = await sendTx(json.to, json.data, `executeFlashArb ${opp.tokenPair}`, json.gasLimit);
       const profitWei = opp.netProfitWei || "0";
       recordSessionTrade(profitWei);

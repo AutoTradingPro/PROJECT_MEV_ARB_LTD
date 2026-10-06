@@ -63,14 +63,17 @@ function wssUrls(chainId: ChainId): string[] {
     if (env.length > 0) return env;
     return wssCandidates("arbitrum");
   }
-  const env = uniqueUrls([
-    process.env.RPC_WSS_URL || "",
-    process.env.NEXT_PUBLIC_BSC_WS_URL || "",
-    process.env.RPC_WSS_URL_2 || "",
-    process.env.NEXT_PUBLIC_BSC_WS_URL_2 || "",
-  ]);
-  if (env.length > 0) return env;
-  return wssCandidates("bsc");
+  if (chainId === "bsc") {
+    const env = uniqueUrls([
+      process.env.RPC_WSS_URL || "",
+      process.env.NEXT_PUBLIC_BSC_WS_URL || "",
+      process.env.RPC_WSS_URL_2 || "",
+      process.env.NEXT_PUBLIC_BSC_WS_URL_2 || "",
+    ]);
+    if (env.length > 0) return env;
+    return wssCandidates("bsc");
+  }
+  return uniqueUrls([getChain(chainId).wsUrl || "", ...wssCandidates(chainId)]);
 }
 
 type SocketLike = {

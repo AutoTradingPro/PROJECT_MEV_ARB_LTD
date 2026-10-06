@@ -171,7 +171,7 @@ export default function Header() {
                 type="button"
                 onClick={() => void handleWalletClick()}
                 disabled={isConnecting && chainId !== "solana"}
-                className={`px-4 py-2 rounded-lg font-bold transition-all text-sm flex items-center justify-center gap-2 shadow-lg min-w-36 cursor-pointer disabled:opacity-60 ${
+                className={`flex min-h-11 min-w-36 items-center justify-center gap-2 rounded-lg px-4 text-sm font-bold shadow-lg transition-all cursor-pointer disabled:opacity-60 ${
                   isConnected
                     ? "bg-slate-900 border border-emerald-500/50 text-emerald-400 hover:bg-slate-800 shadow-emerald-500/10"
                     : "text-slate-950 bg-gradient-to-r from-amber-400 to-yellow-300 hover:from-amber-300 hover:to-yellow-200 shadow-amber-400/20"
@@ -253,7 +253,7 @@ export default function Header() {
               <input
                 type="text"
                 placeholder="Cari token atau pasangan..."
-                className={`w-full sm:w-48 rounded-lg pl-9 pr-3 py-1.5 text-xs focus:outline-none transition-colors ${
+                className={`ui-field w-full rounded-lg pl-9 pr-3 focus:outline-none transition-colors sm:w-56 ${
                   isLight
                     ? "bg-slate-100 border border-slate-200 text-slate-900 placeholder-slate-400 focus:border-blue-400"
                     : "bg-slate-900 border border-slate-800 text-white placeholder-slate-500 focus:border-amber-400/50"
@@ -282,7 +282,7 @@ export default function Header() {
                 <button
                   type="button"
                   onClick={logout}
-                  className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition-colors cursor-pointer ${
+                  className={`inline-flex min-h-11 items-center rounded-lg border px-3 text-sm font-bold transition-colors cursor-pointer ${
                     isLight
                       ? "border-slate-300 text-slate-600 hover:text-red-500 hover:border-red-300"
                       : "border-slate-700 text-slate-400 hover:text-red-400 hover:border-red-500/40"
@@ -295,7 +295,7 @@ export default function Header() {
               <button
                 type="button"
                 onClick={() => openModal("login")}
-                className="shrink-0 h-10 px-5 rounded-lg bg-blue-600 text-white text-sm font-bold flex items-center gap-1.5 hover:bg-blue-700 transition-colors shadow-sm cursor-pointer"
+                className="flex h-11 shrink-0 items-center gap-1.5 rounded-lg bg-blue-600 px-5 text-sm font-bold text-white shadow-sm hover:bg-blue-700 transition-colors cursor-pointer"
               >
                 <LogIn className="w-4 h-4" />
                 Log In

@@ -450,7 +450,7 @@ export default function FinancialReportingView() {
                     </p>
                   ))}
                   {section.rows?.length ? (
-                    <div className="overflow-x-auto rounded-xl border border-slate-800">
+                    <div className="touch-scroll rounded-xl border border-slate-800">
                       <table className="w-full text-left text-xs">
                         <tbody className="divide-y divide-slate-800/70">
                           {section.rows.map((row) => (
@@ -469,7 +469,7 @@ export default function FinancialReportingView() {
                 <div className="border-b border-slate-800 px-4 py-3">
                   <h3 className="text-sm font-bold tracking-wide">Audit log operasional</h3>
                 </div>
-                <div className="overflow-x-auto">
+                <div className="touch-scroll">
                   <table className="w-full min-w-[720px] text-left text-xs">
                     <thead>
                       <tr className="border-b border-slate-800 bg-slate-950/80 text-[10px] uppercase tracking-wide text-slate-500">

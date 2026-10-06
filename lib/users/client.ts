@@ -25,9 +25,46 @@ export async function fetchOwnerUser(identifier: string): Promise<OwnerUser | nu
   return json.user ?? null;
 }
 
+export async function loginOwnerUser(input: {
+  identifier: string;
+  password: string;
+  wallet?: string;
+}): Promise<OwnerUser> {
+  const res = await fetch("/api/auth/login", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const json = await readJson<{ user?: OwnerUser; error?: string }>(res);
+  if (!res.ok || !json.user) {
+    throw new Error(json.error || "Login gagal.");
+  }
+  return json.user;
+}
+
+export async function logoutOwnerSession(): Promise<void> {
+  await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
+}
+
+export async function fetchAuthSession(): Promise<OwnerUser | null> {
+  const res = await fetch("/api/auth/session", { cache: "no-store" });
+  if (res.status === 401 || res.status === 403) {
+    const json = await readJson<{ error?: string }>(res);
+    const error = new Error(json.error || "Sesi tidak terdaftar di User List Register.");
+    (error as Error & { status?: number }).status = res.status;
+    throw error;
+  }
+  const json = await readJson<{ user?: OwnerUser; error?: string }>(res);
+  if (!res.ok || !json.user) {
+    throw new Error(json.error || "Gagal memeriksa sesi.");
+  }
+  return json.user;
+}
+
 export async function registerOwnerUser(input: {
   username: string;
   email: string;
+  password: string;
   wallet?: string;
   telegramId?: string;
 }): Promise<OwnerUser> {

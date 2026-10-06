@@ -22,13 +22,6 @@ createAppKit({
   featuredWalletIds,
   customWallets: [
     {
-      id: "c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96",
-      name: "MetaMask",
-      homepage: "https://metamask.io",
-      mobile_link: "metamask://",
-      desktop_link: "metamask://",
-    },
-    {
       id: "fd20dc426fb37544d339da47a23dc75c176b2fe9b30a28d1a2d2c6e9ef998267",
       name: "Coinbase Wallet",
       homepage: "https://www.coinbase.com/wallet",
@@ -58,7 +51,7 @@ createAppKit({
     onramp: false,
     swaps: false,
     history: false,
-    connectMethodsOrder: ["email", "social", "wallet"],
+    connectMethodsOrder: ["wallet", "email", "social"],
   },
 });
 

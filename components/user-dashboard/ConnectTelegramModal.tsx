@@ -86,7 +86,7 @@ export default function ConnectTelegramModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[120] flex items-center justify-center p-4 sm:p-6"
+      className="ui-modal-root z-[120]"
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
@@ -97,7 +97,7 @@ export default function ConnectTelegramModal({
         className="absolute inset-0 bg-slate-950/80 backdrop-blur-md cursor-pointer"
         onClick={onClose}
       />
-      <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-slate-700/80 bg-slate-900/95 shadow-2xl shadow-black/50">
+      <div className="relative max-h-[min(92dvh,40rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-slate-700/80 bg-slate-900/95 shadow-2xl shadow-black/50">
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-sky-400/40 to-transparent" />
         <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-2">
           <div className="flex items-start gap-2.5 min-w-0">
@@ -116,7 +116,7 @@ export default function ConnectTelegramModal({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>

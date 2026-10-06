@@ -9,7 +9,7 @@ const PROXIES: Record<number, string | undefined> = {
   10: process.env.NEXT_PUBLIC_MEV_VAULT_10,
   56: process.env.NEXT_PUBLIC_MEV_VAULT_56,
   137: process.env.NEXT_PUBLIC_MEV_VAULT_137,
-  250: process.env.NEXT_PUBLIC_MEV_VAULT_250,
+  143: process.env.NEXT_PUBLIC_MEV_VAULT_143,
   8453: process.env.NEXT_PUBLIC_MEV_VAULT_8453,
   324: process.env.NEXT_PUBLIC_MEV_VAULT_324,
   42161: process.env.NEXT_PUBLIC_MEV_VAULT_42161,

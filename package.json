@@ -16,12 +16,20 @@
     "deploy:executor:optimism": "npx tsx --env-file=.env.local script/deploy-mev-executor.ts --network optimism",
     "deploy:executor:base": "npx tsx --env-file=.env.local script/deploy-mev-executor.ts --network base",
     "deploy:executor:avalanche": "npx tsx --env-file=.env.local script/deploy-mev-executor.ts --network avalanche",
-    "deploy:executor:fantom": "npx tsx --env-file=.env.local script/deploy-mev-executor.ts --network fantom",
+    "deploy:executor:monad": "npx tsx --env-file=.env.local script/deploy-mev-executor.ts --network monad",
     "deploy:executor:linea": "npx tsx --env-file=.env.local script/deploy-mev-executor.ts --network linea",
     "test:vault": "forge test --match-path test/ArbitrumFlashArbExecutor.t.sol -vv",
     "test:mev-executor": "forge test --match-path test/MevExecutor.t.sol -vv",
     "vault:index": "tsx --env-file=.env.local script/vault-indexer.ts",
-    "verify:executors": "tsx script/verify-executor-activation.ts"
+    "verify:executors": "tsx script/verify-executor-activation.ts",
+    "audit:chains": "tsx --env-file=.env.local script/audit-chains.ts",
+    "desktop:serve": "node scripts/desktop-serve.mjs",
+    "desktop:prepare": "node scripts/desktop-prepare.mjs",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "cap:sync": "cap sync",
+    "cap:open:android": "cap open android",
+    "cap:open:ios": "cap open ios"
   },
   "dependencies": {
     "@reown/appkit": "^1.8.23",
@@ -49,7 +57,10 @@
     "wagmi": "2.19.5"
   },
   "devDependencies": {
+    "@capacitor/cli": "^7.6.9",
+    "@capacitor/core": "^7.6.9",
     "@tailwindcss/postcss": "^4",
+    "@tauri-apps/cli": "^2.12.1",
     "@types/node": "^20",
     "@types/pg": "^8.23.1",
     "@types/react": "^19",

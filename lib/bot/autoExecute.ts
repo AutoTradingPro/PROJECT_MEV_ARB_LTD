@@ -11,21 +11,12 @@ import { formatEstimatedTxGasFromPrice } from "@/lib/bot/gasCostEstimate";
 import { parseBlockNumber } from "@/lib/chain/publicEnv";
 import { formatBps } from "@/lib/bot/dexMath";
 import { normalizeTradingChainId } from "@/config/networks";
-import { FANTOM_EXECUTOR_SKIP_REASON } from "@/src/flashloan/globalProviderSelector";
 import { appendServerLog } from "@/lib/bot/serverLog";
 import { publishQueuedScanRoutes } from "@/lib/bot/queueFeedBridge";
 import type { BotConfig, Opportunity } from "@/lib/bot/types";
 
-/* ============================================================
- * CIRCUIT BREAKER
- * Optimism dan Avalanche (Aave V3, kind 3) serta Base (Uniswap V3
- * flash, kind 4) sudah dihapus dari hold. Executor barunya on-chain.
- * Hanya Fantom yang tersisa: executor belum di-deploy.
- * Untuk membuka Fantom nanti, hapus baris `fantom` di bawah.
- * ============================================================ */
-const MEV_EXECUTOR_REDEPLOY_HOLD: Record<string, string> = {
-  fantom: `[SKIP] ${FANTOM_EXECUTOR_SKIP_REASON}`,
-};
+/* Tidak ada chain yang ditahan. Monad memakai executor EVM standar. */
+const MEV_EXECUTOR_REDEPLOY_HOLD: Record<string, string> = {};
 
 const redeployHoldLoggedAt = new Map<string, number>();
 
@@ -163,7 +154,17 @@ export function networkScanTag(chainId?: string, sandbox = false): string {
           ? "Ethereum"
           : id === "solana"
             ? "Solana"
-            : "BSC";
+            : id === "monad"
+              ? "Monad"
+              : id === "linea"
+                ? "Linea"
+                : id === "optimism"
+                  ? "Optimism"
+                  : id === "avalanche"
+                    ? "Avalanche"
+                    : id === "base"
+                      ? "Base"
+                      : "BSC";
   return `${name} ${sandbox ? "testnet" : "mainnet"}`;
 }
 
@@ -173,6 +174,7 @@ const FOREIGN_SCAN_LOG: Record<string, RegExp> = {
   arbitrum: /chain=arbitrum|\[Arbitrum\s|PRIVATE_KEY_ARBITRUM|RPC_HTTP_URL_ARBITRUM/i,
   bsc: /chain=bsc|\[BSC\s|PRIVATE_KEY_BSC|RPC_HTTP_URL_BSC/i,
   solana: /chain=solana|\[Solana\s|SOLANA-SCAN|SOLANA-WORKER|SOLANA-LIVE|SOLANA-EXEC/i,
+  monad: /chain=monad|\[Monad\s|\[MONAD 143\]|MONAD_RPC_URL|MONAD_WSS_URL/i,
 };
 
 /** Log scan/signer hanya untuk rantai tab aktif. */
@@ -477,24 +479,36 @@ export function formatRuntimeScanLine(input: {
   const block = parsedBlock > 0 ? String(parsedBlock) : "—";
   const sym = input.nativeSymbol || "ETH";
   const gasLabel =
-    sym === "BNB" ? "BNB (Gas)" : sym === "POL" ? "POL (Gas)" : sym === "SOL" ? "SOL (Fee)" : "ETH (Gas)";
+    sym === "BNB"
+      ? "BNB (Gas)"
+      : sym === "POL"
+        ? "POL (Gas)"
+        : sym === "MON"
+          ? "MON (Gas)"
+          : sym === "SOL"
+            ? "SOL (Fee)"
+            : "ETH (Gas)";
   // Gas EVM dibayar EOA signer — label eksplisit agar tidak tertukar dengan Vault (kontrak executor).
   const walletLabel =
     sym === "BNB"
       ? "Wallet BNB (gas)"
       : sym === "POL"
         ? "Wallet POL (gas)"
-        : sym === "SOL"
-          ? "Wallet SOL"
-          : "Wallet ETH (gas)";
+        : sym === "MON"
+          ? "Wallet MON (gas)"
+          : sym === "SOL"
+            ? "Wallet SOL"
+            : "Wallet ETH (gas)";
   const vaultNativeLabel =
     sym === "POL"
       ? "Vault POL"
       : sym === "BNB"
         ? "Vault BNB"
-        : sym === "SOL"
-          ? "Vault SOL"
-          : "Vault ETH";
+        : sym === "MON"
+          ? "Vault MON"
+          : sym === "SOL"
+            ? "Vault SOL"
+            : "Vault ETH";
 
   // ETH/POL (Gas) = estimasi biaya tx (gasLimit × gasPrice), BUKAN saldo.
   // Arbitrum: plafon pra-eksekusi 250k unit (bukan 650k config default).
@@ -526,6 +540,47 @@ export function formatRuntimeScanLine(input: {
       ? ` · NOT-READY: ${input.notReadyDetail.replace(/\s+/g, " ").trim()}`
       : "";
   return `[${clock}] [${tag}] ${routeBit} · ${heightLabel} #${block}${gasBit}${walletBit}${vaultEthBit}${vaultUsdcBit}${vaultUsdtBit}${feeBit} · ${readyBit}${skipBit}`;
+}
+
+const MONAD_SCAN_PAIRS = [
+  { id: "wmon-usdc", label: "WMON/USDC" },
+  { id: "weth-usdc-monad", label: "WETH/USDC" },
+] as const;
+
+function formatQuoteAmount(wei: string, decimals: number): string {
+  try {
+    const value = BigInt(wei || "0");
+    const scale = 10n ** BigInt(Math.max(0, decimals));
+    const whole = value / scale;
+    const frac = (value % scale).toString().padStart(Math.max(0, decimals), "0").slice(0, 4).padEnd(4, "0");
+    const sign = value < 0n ? "-" : "";
+    return `${sign}${whole}.${frac}`;
+  } catch {
+    return "0.0000";
+  }
+}
+
+/** Satu baris per siklus scan Monad: blok, spread DEX, gas quote, dan laba bersih. */
+export function formatMonadScanCycle(input: {
+  block: number;
+  opportunities: Opportunity[];
+}): string {
+  const block = input.block > 0 ? String(input.block) : "—";
+  const bits = MONAD_SCAN_PAIRS.map((pair) => {
+    const match = input.opportunities
+      .filter((item) => item.pairId === pair.id)
+      .sort((a, b) => (b.spreadBps || 0) - (a.spreadBps || 0))[0];
+    if (!match) return `${pair.label} spread — · gas — · profit —`;
+    const dexIn = match.dexAName || match.buyExchange || "DEX";
+    const dexOut = match.dexBName || match.sellExchange || "DEX";
+    const decimals = match.quoteDecimals ?? 6;
+    const quote = match.tokenIn || "USDC";
+    const spread = ((match.spreadBps || 0) / 100).toFixed(4);
+    const gas = formatQuoteAmount(match.gasCostWei || "0", decimals);
+    const profit = formatQuoteAmount(match.netProfitWei || "0", decimals);
+    return `${pair.label} ${dexIn} → ${dexOut} spread ${spread}% · gas ${gas} ${quote} · profit ${profit} ${quote}`;
+  });
+  return `[MONAD 143] block #${block} · ${bits.join(" · ")}`;
 }
 
 export function isUserRejectedExec(message: string): boolean {

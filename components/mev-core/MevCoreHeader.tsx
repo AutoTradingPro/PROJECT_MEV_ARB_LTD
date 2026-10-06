@@ -24,10 +24,10 @@ export default function MevCoreHeader({
 }: MevCoreHeaderProps) {
   const healthy = rpcMs != null && rpcMs < 250 && !killed;
   return (
-    <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-cyan-400/25 bg-slate-950/70 p-3 shadow-[0_0_40px_rgba(16,185,129,0.08)] backdrop-blur-md">
+    <header className="flex flex-col gap-3 rounded-2xl border border-cyan-400/25 bg-slate-950/70 p-3 shadow-[0_0_40px_rgba(16,185,129,0.08)] backdrop-blur-md lg:flex-row lg:flex-wrap lg:items-center lg:justify-between">
       <div className="flex min-w-0 flex-wrap items-center gap-3">
-        <MevArbHeaderLogo className="h-[4.75rem] w-auto max-w-[9.5rem] shrink-0 rounded-md object-contain object-left" />
-        <h1 className="bg-[linear-gradient(90deg,#00FF9D_0%,#2EE6A6_32%,#22D3EE_100%)] bg-clip-text text-[2.25rem] font-black leading-none tracking-[0.06em] text-transparent">
+        <MevArbHeaderLogo className="h-16 w-auto max-w-[7.5rem] shrink-0 rounded-md object-contain object-left sm:h-[4.75rem] sm:max-w-[9.5rem]" />
+        <h1 className="bg-[linear-gradient(90deg,#00FF9D_0%,#2EE6A6_32%,#22D3EE_100%)] bg-clip-text text-xl font-black leading-tight tracking-[0.04em] text-transparent sm:text-3xl lg:text-[2.25rem] lg:leading-none lg:tracking-[0.06em]">
           MEV CORE ENGINE
         </h1>
         <span
@@ -42,8 +42,8 @@ export default function MevCoreHeader({
         </span>
       </div>
 
-      <div className="flex flex-wrap items-start justify-end gap-2">
-        <div className="inline-flex items-center gap-2 rounded-xl border border-cyan-400/30 bg-slate-900/80 px-3 py-2 text-xs">
+      <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start sm:justify-end lg:w-auto">
+        <div className="inline-flex min-h-11 flex-wrap items-center gap-2 rounded-xl border border-cyan-400/30 bg-slate-900/80 px-3 py-2 text-sm">
           <Radio className={`h-4 w-4 ${healthy ? "text-emerald-400" : "text-amber-300"}`} />
           <span className="text-slate-400">RPC Health</span>
           <span className="font-mono text-cyan-200">
@@ -57,18 +57,18 @@ export default function MevCoreHeader({
           type="button"
           onClick={onKillToggle}
           disabled={pending}
-          className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-rose-500/70 bg-rose-950/40 px-3 py-2 text-xs font-black uppercase tracking-wider text-rose-200 shadow-[0_0_18px_rgba(244,63,94,0.25)] transition hover:bg-rose-900/50 disabled:cursor-wait disabled:opacity-60"
+          className="inline-flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-rose-500/70 bg-rose-950/40 px-3 text-xs font-black uppercase tracking-wider text-rose-200 shadow-[0_0_18px_rgba(244,63,94,0.25)] transition hover:bg-rose-900/50 disabled:cursor-wait disabled:opacity-60 sm:w-auto"
         >
           <ShieldAlert className="h-4 w-4" />
           {pending ? "Working…" : killed ? "Resume Engine" : "Emergency Kill Switch"}
         </button>
         {onLogout || username ? (
-          <div className="flex flex-col items-end gap-1">
+          <div className="flex w-full flex-col items-stretch gap-1 sm:w-auto sm:items-end">
             {onLogout ? (
               <button
                 type="button"
                 onClick={onLogout}
-                className="inline-flex cursor-pointer items-center gap-1 rounded-xl border border-slate-700 px-3 py-2 text-xs font-bold text-slate-300"
+                className="inline-flex min-h-11 w-full cursor-pointer items-center justify-center gap-1 rounded-xl border border-slate-700 px-3 text-sm font-bold text-slate-300 sm:w-auto"
               >
                 <LogOut className="h-3.5 w-3.5" />
                 Keluar

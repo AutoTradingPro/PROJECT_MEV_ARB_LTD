@@ -47,3 +47,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# desktop wrapper
+/src-tauri/target
+/src-tauri/gen
+/android
+/ios

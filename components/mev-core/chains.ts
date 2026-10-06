@@ -15,7 +15,7 @@ export const CORE_CHAINS: CoreChain[] = [
   { id: "base", label: "Base", short: "BA", color: "#0052FF", pair: "WETH / USDbC" },
   { id: "bsc", label: "BNB Chain", short: "BN", color: "#F3BA2F", pair: "WBNB / USDT" },
   { id: "avalanche", label: "Avalanche", short: "AV", color: "#E84142", pair: "WETH.e / WAVAX" },
-  { id: "fantom", label: "Fantom", short: "FT", color: "#1969FF", pair: "WETH / WFTM" },
+  { id: "monad", label: "Monad", short: "MO", color: "#836EF9", pair: "WMON / USDC · WETH / USDC" },
   { id: "solana", label: "Solana", short: "SO", color: "#14F195", pair: "SOL / USDC" },
   { id: "linea", label: "Linea", short: "LN", color: "#61DFFF", pair: "WETH / USDC" },
 ];

@@ -1,0 +1,14 @@
+MEV ARB — Dokumen Spesifikasi
+Produk: Bot DEX Sniper (Decentralized Exchange)
+Status: Advanced / Locked
+ID: dex-sniper
+
+Ringkasan
+Modul sniper listing pool DEX untuk operator yang memantau pair baru. Terkunci sampai filter likuiditas dan guardrail dampak harga aktif.
+
+Cakupan rilis
+- Deteksi pool baru di DEX
+- Filter likuiditas minimum
+- Guardrail dampak harga sebelum eksekusi
+
+Dokumen ini adalah paket spesifikasi modul, bukan installer.

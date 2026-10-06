@@ -1,0 +1,15 @@
+MEV ARB — Dokumen Spesifikasi
+Produk: Bot Arbitrase (Arbitrage Bots)
+Status: Active / Ready
+ID: arbitrase
+
+Ringkasan
+Memindai spread lintas DEX, menyusun rute, dan mengeksekusi peluang dalam satu transaksi atomik dengan kontrol gas dan min-profit yang dikelola sistem.
+
+Cakupan rilis
+- Scanner multi-chain di control portal /mev-arb
+- Mode SCAN_ONLY sebagai default operasional
+- Filter spread, likuiditas, price impact, dan bribe
+- Kill switch dan pencatatan log eksekusi
+
+Dokumen ini adalah paket spesifikasi modul, bukan installer dompet atau kunci privat.

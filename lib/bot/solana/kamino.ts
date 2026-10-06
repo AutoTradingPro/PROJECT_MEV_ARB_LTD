@@ -15,6 +15,7 @@ import {
   isKaminoFlashProvider,
   kaminoFlashFeeUsd,
   kaminoFlashFeeWei,
+  resolveSolanaExecutorProgramId,
 } from "@/lib/bot/solana/kaminoConstants";
 import {
   SOLANA_POPULAR_PAIR_IDS,
@@ -29,6 +30,7 @@ export {
   isKaminoFlashProvider,
   kaminoFlashFeeUsd,
   kaminoFlashFeeWei,
+  resolveSolanaExecutorProgramId,
 };
 
 export interface KaminoFlashLoanRoute {
@@ -46,11 +48,12 @@ export interface KaminoFlashLoanRoute {
 
 export function resolveKaminoFlashLoanRoute(): KaminoFlashLoanRoute {
   const exec = describeSolanaExecutor();
+  const programId = resolveSolanaExecutorProgramId();
   return {
     providerId: "kamino",
     chainId: KAMINO_FLASH_CHAIN_ID,
-    programId: KAMINO_KLEND_PROGRAM_ID,
-    source: KAMINO_FLASH_LOAN_SOURCE,
+    programId,
+    source: programId,
     feePct: KAMINO_FLASH_FEE_PCT,
     label: "Kamino Finance (K-Lend)",
     rpcCluster: "mainnet-beta",

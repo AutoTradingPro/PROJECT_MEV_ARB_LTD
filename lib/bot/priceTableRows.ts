@@ -54,7 +54,7 @@ export function placeholderDexPair(
   activeDexIds?: DexId[]
 ): { dexA: string; dexB: string } {
   const allowed = new Set(defaultDexIdsForChain(chainId as ChainId));
-  const selected = (activeDexIds ?? []).filter((id) => allowed.has(id) || Boolean(id));
+  const selected = (activeDexIds ?? []).filter((id) => allowed.has(id));
   const ids =
     selected.length >= 2 ? selected : selected.length === 1 ? [...selected, ...defaultDexIdsForChain(chainId as ChainId)] : defaultDexIdsForChain(chainId as ChainId);
   const unique = [...new Set(ids.filter(Boolean))];

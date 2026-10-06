@@ -28,7 +28,7 @@ export default function AuthModalTabs({ active, onChange }: AuthModalTabsProps) 
             role="tab"
             aria-selected={selected}
             onClick={() => onChange(id)}
-            className={`py-2.5 px-3 rounded-lg text-sm font-bold transition-all cursor-pointer ${
+            className={`min-h-11 px-3 rounded-lg text-sm font-bold transition-all cursor-pointer ${
               selected
                 ? "bg-gradient-to-r from-amber-500/20 to-amber-400/10 text-amber-300 border border-amber-500/30 shadow-inner"
                 : "text-slate-500 hover:text-slate-300 border border-transparent"

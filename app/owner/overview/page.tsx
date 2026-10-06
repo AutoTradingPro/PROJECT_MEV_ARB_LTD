@@ -11,7 +11,7 @@ export default function OwnerOverviewPage() {
         <p className="mt-1 text-sm text-slate-400">
           Command Center owner — kill switch, Mode Publik/Hemat WSS·RPC, dan FlashLoan & RPC Provider
           per jaringan (Ethereum, Polygon, Arbitrum, Optimism, Avalanche, Solana, Base, BNB
-          Chain, Fantom, Linea).
+          Chain, Monad, Linea).
         </p>
       </div>
       <OwnerKillSwitch />

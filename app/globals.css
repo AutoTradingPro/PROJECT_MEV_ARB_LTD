@@ -97,6 +97,7 @@ html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
   zoom: 1;
+  overflow-x: clip;
 }
 
 body {
@@ -106,6 +107,47 @@ body {
   transition: background-color 0.25s ease, color 0.25s ease;
   zoom: 1;
   transform: none;
+  overflow-x: clip;
+}
+
+@layer components {
+  .touch-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+  }
+
+  .ui-modal-root {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding:
+      max(0.75rem, env(safe-area-inset-top))
+      max(0.75rem, env(safe-area-inset-right))
+      max(0.75rem, env(safe-area-inset-bottom))
+      max(0.75rem, env(safe-area-inset-left));
+  }
+
+  .ui-modal-panel {
+    width: min(100%, 28rem);
+    max-height: min(92dvh, 44rem);
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+
+  .ui-field {
+    min-height: 2.75rem;
+    font-size: 1rem;
+  }
+
+  @media (min-width: 640px) {
+    .ui-field {
+      font-size: 0.875rem;
+    }
+  }
 }
 
 .theme-shell {

@@ -82,6 +82,36 @@ export function publicArbitrumArbitrageExecutor(): string {
   return value;
 }
 
+/** Executor MevExecutor Linea. Di-inline Next.js karena akses property statis. */
+export function publicLineaArbitrageExecutor(): string {
+  return (process.env.NEXT_PUBLIC_LINEA_ARBITRAGE_EXECUTOR ?? "").trim();
+}
+
+/** Executor MevExecutor Monad. Di-inline Next.js karena akses property statis. */
+export function publicMonadArbitrageExecutor(): string {
+  return (process.env.NEXT_PUBLIC_MONAD_ARBITRAGE_EXECUTOR ?? "").trim();
+}
+
+/** Executor Polygon. Di-inline Next.js karena akses property statis. */
+export function publicPolygonArbitrageExecutor(): string {
+  return (process.env.NEXT_PUBLIC_POLYGON_ARBITRAGE_EXECUTOR ?? "").trim();
+}
+
+/** Executor Optimism. Di-inline Next.js karena akses property statis. */
+export function publicOptimismArbitrageExecutor(): string {
+  return (process.env.NEXT_PUBLIC_OPTIMISM_ARBITRAGE_EXECUTOR ?? "").trim();
+}
+
+/** Executor Base. Di-inline Next.js karena akses property statis. */
+export function publicBaseArbitrageExecutor(): string {
+  return (process.env.NEXT_PUBLIC_BASE_ARBITRAGE_EXECUTOR ?? "").trim();
+}
+
+/** Executor Avalanche. Di-inline Next.js karena akses property statis. */
+export function publicAvalancheArbitrageExecutor(): string {
+  return (process.env.NEXT_PUBLIC_AVALANCHE_ARBITRAGE_EXECUTOR ?? "").trim();
+}
+
 /** Executor flashloan Ethereum Mainnet (bukan Balancer Vault 0xBA12…). */
 export function publicEthereumArbitrageExecutor(): string {
   const value = (

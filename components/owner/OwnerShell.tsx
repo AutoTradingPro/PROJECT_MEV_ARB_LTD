@@ -22,7 +22,7 @@ export default function OwnerShell({ children }: { children: ReactNode }) {
                 <button
                   type="button"
                   onClick={() => setSidebarOpen(true)}
-                  className="rounded-lg border border-slate-800 p-2 text-slate-300 cursor-pointer shrink-0"
+                  className="inline-flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-slate-800 text-slate-300"
                   aria-label="Buka menu"
                 >
                   <Menu className="w-4 h-4" />

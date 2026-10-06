@@ -168,7 +168,7 @@ export default function OwnerNodeFeedControl() {
             Jejak ON/OFF Mode Publik (WSS/RPC) dan toggle per jaringan.
           </p>
         </div>
-        <div className="overflow-x-auto">
+        <div className="touch-scroll">
           <table className="w-full min-w-[640px] border-collapse text-left text-xs">
             <thead>
               <tr className="border-b border-slate-800 bg-slate-950/80 text-[10px] uppercase tracking-wide text-slate-500">

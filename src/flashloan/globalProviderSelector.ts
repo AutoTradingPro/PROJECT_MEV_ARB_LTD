@@ -14,8 +14,6 @@ export const FLASH_FEE_PPM = {
   SUSHI_V2: 3000,
 } as const;
 
-export const FANTOM_EXECUTOR_SKIP_REASON = "Executor contract not deployed on Fantom";
-
 export interface FlashloanProviderEntry {
   id: string;
   name: string;
@@ -61,7 +59,7 @@ const PROVIDER_SPECS: readonly ProviderSpec[] = [
     name: "Uniswap V3",
     feePpm: FLASH_FEE_PPM.V3_FLASH_LOW,
     dynamicV3: true,
-    chains: [1, 137, 42161, 8453],
+    chains: [1, 137, 42161, 8453, 59144, 143],
   },
   {
     id: "pancakeswap-v3",
@@ -80,24 +78,24 @@ const PROVIDER_SPECS: readonly ProviderSpec[] = [
     id: "aave-v3",
     name: "Aave V3",
     feePpm: FLASH_FEE_PPM.AAVE_V3,
-    chains: [1, 137, 42161, 43114, 10],
+    chains: [1, 137, 42161, 43114, 10, 59144, 143],
   },
   {
     id: "sushiswap-v2",
     name: "SushiSwap V2",
     feePpm: FLASH_FEE_PPM.SUSHI_V2,
-    chains: [1, 137, 42161, 250],
+    chains: [1, 137, 42161],
   },
 ];
 
-const EVM_CHAIN_IDS = [1, 10, 56, 137, 250, 8453, 42161, 43114, 59144] as const;
+const EVM_CHAIN_IDS = [1, 10, 56, 137, 143, 8453, 42161, 43114, 59144] as const;
 
 const TRADING_CHAIN_TO_NUMERIC: Record<string, number> = {
   ethereum: 1,
   optimism: 10,
   bsc: 56,
   polygon: 137,
-  fantom: 250,
+  monad: 143,
   base: 8453,
   arbitrum: 42161,
   avalanche: 43114,
@@ -115,12 +113,8 @@ export function isSolanaTradingChain(chainKey: string | number | null | undefine
   return String(chainKey ?? "").trim().toLowerCase() === "solana";
 }
 
-/** Fantom tidak punya executor. Chain lain boleh lanjut. */
-export function flashloanExecutionBlock(chainKey: string | number | null | undefined): string | null {
-  const key = String(chainKey ?? "").trim().toLowerCase();
-  if (key === "fantom" || numericChainIdForTradingChain(chainKey) === 250) {
-    return FANTOM_EXECUTOR_SKIP_REASON;
-  }
+/** Tidak ada chain yang diblokir dari eksekusi flash loan. */
+export function flashloanExecutionBlock(_chainKey: string | number | null | undefined): string | null {
   return null;
 }
 

@@ -27,7 +27,7 @@ export default function AuthModal() {
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6"
+      className="ui-modal-root z-[100]"
       role="dialog"
       aria-modal="true"
       aria-labelledby="auth-modal-title"
@@ -39,26 +39,25 @@ export default function AuthModal() {
         onClick={closeModal}
       />
 
-      <div className="relative w-full max-w-md bg-slate-900/95 border border-slate-700/80 rounded-2xl shadow-2xl shadow-black/50 overflow-hidden transform transition-all">
-        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-400/40 to-transparent" />
-
-        <div className="flex items-start justify-between gap-3 px-6 pt-6 pb-2">
-          <div>
-            <h2 id="auth-modal-title" className="text-lg font-bold tracking-wide text-white">
+      <div className="ui-modal-panel relative border border-slate-700/80 bg-slate-900/95 shadow-2xl shadow-black/50 rounded-2xl">
+        <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-slate-800/80 bg-slate-900/95 px-4 py-3 sm:px-6">
+          <div className="min-w-0 pt-1">
+            <h2 id="auth-modal-title" className="text-lg font-bold tracking-wide text-white sm:text-xl">
               Portal MEV ARB
             </h2>
-            <p className="text-xs text-slate-400 mt-0.5">Akses aman ke dasbor arbitrase institusional</p>
+            <p className="mt-0.5 text-sm text-slate-400">Akses aman ke dasbor arbitrase institusional</p>
           </div>
           <button
             type="button"
             onClick={closeModal}
-            className="p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            aria-label="Tutup"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-300 hover:bg-slate-800 hover:text-white transition-colors cursor-pointer"
           >
-            <X className="w-5 h-5" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
-        <div className="px-6 pt-3 pb-6 space-y-5">
+        <div className="space-y-5 px-4 py-4 sm:px-6 sm:pb-6">
           <AuthModalTabs active={authTab} onChange={setAuthTab} />
           {authTab === "login" ? <LoginForm /> : <RegisterForm />}
         </div>

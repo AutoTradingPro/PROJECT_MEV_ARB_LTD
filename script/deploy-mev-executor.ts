@@ -1,8 +1,9 @@
 /**
- * Deploy MevExecutor ke Optimism, Base, Avalanche, Fantom, dan Linea.
+ * Deploy MevExecutor ke Optimism, Base, Avalanche, Monad, dan Linea.
  *
  *   npm run deploy:executors
  *   npm run deploy:executor:optimism
+ *   npx tsx --env-file=.env.local script/deploy-mev-executor.ts --network monad
  *   npx tsx --env-file=.env.local script/deploy-mev-executor.ts --network linea
  *   npx tsx --env-file=.env.local script/deploy-mev-executor.ts --network base --force
  *
@@ -69,10 +70,13 @@ function signerFor(chain: string): { wallet: Wallet; source: string } {
 }
 
 function rpcFor(chain: string): string {
-  const key = `BLOCKPI_RPC_${chain.toUpperCase()}`;
-  const rpc = env(key);
-  if (!rpc) throw new Error(`${key} kosong.`);
-  return rpc;
+  const upper = chain.toUpperCase();
+  const keys = [`BLOCKPI_RPC_${upper}`, `${upper}_RPC_URL`, `RPC_HTTP_URL_${upper}`];
+  for (const key of keys) {
+    const rpc = env(key);
+    if (rpc) return rpc;
+  }
+  throw new Error(`${keys.join(" / ")} kosong.`);
 }
 
 function flashSourceFor(target: MevExecutorTarget): string {
@@ -345,7 +349,7 @@ async function main(): Promise<void> {
     ? MEV_EXECUTOR_DEPLOY_TARGETS.filter((target) => target.chain === requested)
     : [...MEV_EXECUTOR_DEPLOY_TARGETS];
   if (requested && selected.length === 0) {
-    throw new Error("Jaringan tidak dikenal. Gunakan optimism, base, avalanche, fantom, atau linea.");
+    throw new Error("Jaringan tidak dikenal. Gunakan optimism, base, avalanche, monad, atau linea.");
   }
 
   const failures: string[] = [];

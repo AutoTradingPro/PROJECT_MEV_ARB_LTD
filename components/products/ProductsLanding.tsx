@@ -7,6 +7,7 @@ import {
   ArrowRight,
   BellRing,
   Crosshair,
+  Download,
   Droplets,
   Gauge,
   Layers,
@@ -25,6 +26,8 @@ interface BotProduct {
   body: string;
   status: BotStatus;
   href?: string;
+  downloadHref: string;
+  downloadName: string;
   iconWrap: string;
   glow: string;
   ring: string;
@@ -40,6 +43,8 @@ const BOTS: BotProduct[] = [
     body: "Memindai spread lintas DEX, menyusun rute, dan mengeksekusi peluang dalam satu transaksi atomik dengan kontrol gas dan min-profit yang dikelola sistem.",
     status: "ready",
     href: "/mev-arb",
+    downloadHref: "/downloads/products/bot-arbitrase-spec.txt",
+    downloadName: "mev-arb-bot-arbitrase-spec.txt",
     iconWrap: "from-amber-400/20 to-yellow-300/5 text-amber-300",
     glow: "group-hover:shadow-[0_0_40px_rgba(251,191,36,0.16)]",
     ring: "hover:border-amber-400/45",
@@ -52,6 +57,8 @@ const BOTS: BotProduct[] = [
     kicker: "Latency desk",
     body: "Modul lanjutan untuk memantau aliran order publik dan kompetisi latensi di mempool. Belum dibuka untuk operator standar.",
     status: "locked",
+    downloadHref: "/downloads/products/bot-front-running-spec.txt",
+    downloadName: "mev-arb-bot-front-running-spec.txt",
     iconWrap: "from-sky-400/20 to-cyan-300/5 text-sky-300",
     glow: "group-hover:shadow-[0_0_40px_rgba(56,189,248,0.12)]",
     ring: "hover:border-sky-400/35",
@@ -64,6 +71,8 @@ const BOTS: BotProduct[] = [
     kicker: "MEV sequencing",
     body: "Modul eksekusi MEV berlapis untuk desk yang sudah lolos review risiko. Akses terkunci hingga kebijakan operator dan kuota gas disetujui.",
     status: "locked",
+    downloadHref: "/downloads/products/bot-sandwich-spec.txt",
+    downloadName: "mev-arb-bot-sandwich-spec.txt",
     iconWrap: "from-violet-400/20 to-fuchsia-300/5 text-violet-300",
     glow: "group-hover:shadow-[0_0_40px_rgba(192,132,252,0.12)]",
     ring: "hover:border-violet-400/35",
@@ -76,6 +85,8 @@ const BOTS: BotProduct[] = [
     kicker: "Lending markets",
     body: "Otomasi pemantauan posisi undercollateralized di pasar lending. Modul advanced menunggu integrasi protokol dan limit eksposur.",
     status: "locked",
+    downloadHref: "/downloads/products/bot-likuidasi-spec.txt",
+    downloadName: "mev-arb-bot-likuidasi-spec.txt",
     iconWrap: "from-rose-400/20 to-orange-300/5 text-rose-300",
     glow: "group-hover:shadow-[0_0_40px_rgba(251,113,133,0.12)]",
     ring: "hover:border-rose-400/35",
@@ -88,6 +99,8 @@ const BOTS: BotProduct[] = [
     kicker: "Pool discovery",
     body: "Modul sniper listing pool DEX untuk operator yang memantau pair baru. Terkunci sampai filter likuiditas dan guardrail dampak harga aktif.",
     status: "locked",
+    downloadHref: "/downloads/products/bot-dex-sniper-spec.txt",
+    downloadName: "mev-arb-bot-dex-sniper-spec.txt",
     iconWrap: "from-emerald-400/20 to-teal-300/5 text-emerald-300",
     glow: "group-hover:shadow-[0_0_40px_rgba(52,211,153,0.12)]",
     ring: "hover:border-emerald-400/35",
@@ -100,6 +113,8 @@ const BOTS: BotProduct[] = [
     kicker: "Venue alerts",
     body: "Peringatan dan otomasi listing di bursa terpusat. Modul advanced menunggu konektor API venue dan kebijakan kepatuhan desk.",
     status: "locked",
+    downloadHref: "/downloads/products/bot-cex-listing-spec.txt",
+    downloadName: "mev-arb-bot-cex-listing-spec.txt",
     iconWrap: "from-cyan-400/20 to-sky-300/5 text-cyan-300",
     glow: "group-hover:shadow-[0_0_40px_rgba(34,211,238,0.12)]",
     ring: "hover:border-cyan-400/35",
@@ -133,33 +148,61 @@ function StatusBadges({ status }: { status: BotStatus }) {
   );
 }
 
+function handleDownload(bot: BotProduct) {
+  const link = document.createElement("a");
+  link.href = bot.downloadHref;
+  link.download = bot.downloadName;
+  link.rel = "noopener";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+function DownloadButton({ bot }: { bot: BotProduct }) {
+  return (
+    <a
+      href={bot.downloadHref}
+      download={bot.downloadName}
+      onClick={(event) => {
+        event.preventDefault();
+        handleDownload(bot);
+      }}
+      className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-emerald-400/40 bg-emerald-500/15 px-4 text-sm font-bold text-emerald-200 transition-colors hover:border-emerald-300/70 hover:bg-emerald-500/25 sm:w-auto"
+    >
+      <Download className="h-4 w-4" aria-hidden />
+      Download
+    </a>
+  );
+}
+
 function ProductAction({ bot }: { bot: BotProduct }) {
   const [notice, setNotice] = useState(false);
 
-  if (bot.status === "ready" && bot.href) {
-    return (
-      <Link
-        href={bot.href}
-        className="mt-5 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-300 px-4 py-2 text-xs font-bold text-slate-950 transition-colors hover:from-amber-300 hover:to-yellow-200 sm:text-sm"
-      >
-        Launch Module
-        <ArrowRight className="h-3.5 w-3.5" />
-      </Link>
-    );
-  }
-
   return (
     <div className="mt-5">
-      <button
-        type="button"
-        onClick={() => setNotice((open) => !open)}
-        className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/80 px-4 py-2 text-xs font-bold text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-800 sm:text-sm"
-      >
-        <Lock className="h-3.5 w-3.5 text-slate-400" />
-        Configure
-      </button>
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+        {bot.status === "ready" && bot.href ? (
+          <Link
+            href={bot.href}
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-300 px-4 text-sm font-bold text-slate-950 transition-colors hover:from-amber-300 hover:to-yellow-200 sm:w-auto"
+          >
+            Launch Module
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setNotice((open) => !open)}
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-900/80 px-4 text-sm font-bold text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-800 sm:w-auto"
+          >
+            <Lock className="h-4 w-4 text-slate-400" />
+            Configure
+          </button>
+        )}
+        <DownloadButton bot={bot} />
+      </div>
       {notice ? (
-        <p className="mt-2 text-[11px] leading-5 text-slate-500">
+        <p className="mt-2 text-sm leading-5 text-slate-500">
           Modul Advanced masih terkunci. Hubungi desk untuk meninjau akses.
         </p>
       ) : null}

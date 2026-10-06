@@ -57,7 +57,7 @@ export type ChainId =
   | "avalanche"
   | "polygon"
   | "optimism"
-  | "fantom"
+  | "monad"
   | "linea"
   | "cosmos";
 
@@ -173,16 +173,16 @@ export const CHAINS: ChainConfig[] = [
     logoUrl: TW + "/optimism/info/logo.png",
   },
   {
-    id: "fantom",
-    label: "Fantom",
-    shortLabel: "Fantom Opera",
-    nativeSymbol: "FTM",
-    rpcUrl: "https://fantom.publicnode.com",
-    wsUrl: "wss://fantom.publicnode.com",
-    chainId: 250,
+    id: "monad",
+    label: "Monad",
+    shortLabel: "Monad Mainnet",
+    nativeSymbol: "MON",
+    rpcUrl: "https://rpc.monad.xyz",
+    wsUrl: "wss://rpc.monad.xyz",
+    chainId: 143,
     evm: true,
-    accentClass: "text-blue-300",
-    logoUrl: TW + "/fantom/info/logo.png",
+    accentClass: "text-violet-300",
+    logoUrl: TW + "/monad/info/logo.png",
   },
   {
     id: "linea",

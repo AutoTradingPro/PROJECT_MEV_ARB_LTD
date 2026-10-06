@@ -172,8 +172,8 @@ export async function runScanOnlyAnalysis(input: {
         ? "wbnb-usdt"
         : chainId === "avalanche"
           ? "wavax-usdce"
-          : chainId === "fantom"
-            ? "wftm-usdc"
+          : chainId === "monad"
+            ? "wmon-usdc"
             : null;
   const ethUsdPair =
     chainId === "polygon"
@@ -184,9 +184,11 @@ export async function runScanOnlyAnalysis(input: {
           ? "weth-usdc-arb"
           : chainId === "optimism"
             ? "weth-usdc-op"
-            : chainId === "base"
+              : chainId === "base"
               ? "weth-usdc-base"
-              : null;
+              : chainId === "monad"
+                ? "weth-usdc-monad"
+                : null;
 
   const extra = [...tokens];
   for (const pid of [gasUsdPair, ethUsdPair]) {

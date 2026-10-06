@@ -2,16 +2,16 @@
  * Target deploy MevExecutor.
  * Optimism, Avalanche: Aave V3, premi 900 ppm.
  * Base: Uniswap V3 flash, fee tier 100 (fallback 3000 di kontrak).
- * Fantom: Balancer V2 fee 0 sampai redeploy berikutnya.
+ * Monad: Uniswap V3 flash, fee tier 100. Aave V3 (900 ppm) ikut di selector.
  * Linea: PancakeSwap V3 fee tier 100 (0.01%).
  * Ukuran pinjaman: 200 bps pool V3, 300 bps AMM.
  */
 import {
   AVALANCHE_TOKENS,
-  BALANCER_V2_VAULT,
   BASE_TOKENS,
-  FANTOM_TOKENS,
   LINEA_TOKENS,
+  MONAD_TOKENS,
+  MONAD_UNISWAP_V3_FACTORY,
   OPTIMISM_TOKENS,
 } from "../config/networks";
 import { AMM_LOAN_OF_POOL_RATIO, V3_LOAN_OF_POOL_RATIO } from "../lib/bot/adaptiveMinProfit";
@@ -34,7 +34,7 @@ export const BASE_UNISWAP_V3_FACTORY = "0x33128a8fC17869897dcE68Ed026d694621f6FD
 export const UNISWAP_V3_FLASH_FEE_PPM = 100;
 
 export interface MevExecutorTarget {
-  chain: "optimism" | "base" | "avalanche" | "fantom" | "linea";
+  chain: "optimism" | "base" | "avalanche" | "monad" | "linea";
   chainId: number;
   kind: typeof KIND_BALANCER | typeof KIND_PANCAKE_V3 | typeof KIND_AAVE_V3 | typeof KIND_UNISWAP_V3_FLASH;
   flashFee: number;
@@ -88,17 +88,17 @@ export const MEV_EXECUTOR_DEPLOY_TARGETS: readonly MevExecutorTarget[] = [
     envKeys: ["NEXT_PUBLIC_AVALANCHE_ARBITRAGE_EXECUTOR", "AVALANCHE_ARBITRAGE_EXECUTOR"],
   },
   {
-    chain: "fantom",
-    chainId: 250,
-    kind: KIND_BALANCER,
-    flashFee: 0,
-    feePpm: 0,
-    providerId: "balancer-v2",
-    providerName: "Balancer V2",
-    flashSource: BALANCER_V2_VAULT,
-    wrappedNative: FANTOM_TOKENS.wftm,
-    nativeSymbol: "FTM",
-    envKeys: ["NEXT_PUBLIC_FANTOM_ARBITRAGE_EXECUTOR", "FANTOM_ARBITRAGE_EXECUTOR"],
+    chain: "monad",
+    chainId: 143,
+    kind: KIND_UNISWAP_V3_FLASH,
+    flashFee: UNISWAP_V3_FLASH_FEE_PPM,
+    feePpm: UNISWAP_V3_FLASH_FEE_PPM,
+    providerId: "uniswap-v3",
+    providerName: "Uniswap V3",
+    flashSource: MONAD_UNISWAP_V3_FACTORY,
+    wrappedNative: MONAD_TOKENS.wmon,
+    nativeSymbol: "MON",
+    envKeys: ["NEXT_PUBLIC_MONAD_ARBITRAGE_EXECUTOR", "MONAD_ARBITRAGE_EXECUTOR"],
   },
   {
     chain: "linea",

@@ -26,6 +26,7 @@ function allowed(pathname) {
     pathname.startsWith("/api/operator") ||
     pathname === "/api/config/toggle-execute" ||
     pathname.startsWith("/api/users") ||
+    pathname.startsWith("/api/auth") ||
     pathname === "/manifest.webmanifest" ||
     pathname === "/sw.js" ||
     pathname === "/favicon.ico" ||

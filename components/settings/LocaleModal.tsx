@@ -35,7 +35,7 @@ export default function LocaleModal() {
   ];
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-start justify-center p-4 sm:p-8 overflow-y-auto">
+    <div className="ui-modal-root z-[110] items-start overflow-y-auto sm:items-center">
       <button
         type="button"
         aria-label="Tutup"
@@ -43,7 +43,7 @@ export default function LocaleModal() {
         onClick={closeLocaleModal}
       />
 
-      <div className="relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl my-4 overflow-hidden">
+      <div className="relative my-2 flex max-h-[min(92dvh,52rem)] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
         <div className="flex items-center justify-center gap-8 pt-6 px-6 border-b border-slate-100 relative">
           {tabs.map((tab) => (
             <button
@@ -65,13 +65,13 @@ export default function LocaleModal() {
           <button
             type="button"
             onClick={closeLocaleModal}
-            className="absolute right-4 top-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+            className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="p-6 max-h-[75vh] overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
           {localeModalTab === "language" ? <LanguagePanel /> : <CurrencyPanel />}
         </div>
       </div>
