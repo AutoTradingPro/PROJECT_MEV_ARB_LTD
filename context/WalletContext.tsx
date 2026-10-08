@@ -81,7 +81,7 @@ function connectErrorMessage(err: unknown): string {
 async function connectInjectedMetaMask(
   connectors: readonly Connector[],
   connectAsync: (parameters: { connector: any }) => Promise<unknown>,
-  openModal: () => void | Promise<void>,
+  openModal: () => Promise<void>,
 ) {
   if (!hasEthereumProvider()) {
     await openModal();
@@ -171,8 +171,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
     setIsOpeningModal(true);
     try {
-      await connectInjectedMetaMask(connectors, connectAsync as any, () => {
-        void open({ view: "Connect" });
+      await connectInjectedMetaMask(connectors, connectAsync as any, async () => {
+        await open({ view: "Connect" });
       });
     } catch (err) {
       setError(connectErrorMessage(err));
@@ -223,8 +223,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         setIsOpeningModal(true);
         try {
           setError(null);
-          await connectInjectedMetaMask(connectors, connectAsync as any, () => {
-            void open({ view: "Connect" });
+          await connectInjectedMetaMask(connectors, connectAsync as any, async () => {
+            await open({ view: "Connect" });
           });
         } catch (err) {
           setError(connectErrorMessage(err));
