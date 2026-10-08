@@ -161,145 +161,139 @@ function scanSinglePair(input: {
   const found: Opportunity[] = [];
 
   for (const { buyDex, sellDex } of directedDexRoutes(active)) {
-      const buyPool = pools.get(poolKey(pair.id, buyDex));
-      const sellPool = pools.get(poolKey(pair.id, sellDex));
-      if (!hasSpotPrice(buyPool) || !hasSpotPrice(sellPool)) continue;
+    const buyPool = pools.get(poolKey(pair.id, buyDex));
+    const sellPool = pools.get(poolKey(pair.id, sellDex));
+    if (!hasSpotPrice(buyPool) || !hasSpotPrice(sellPool)) continue;
 
-      /** Early filter global: skip sebelum spread / profit (tidak log, tidak kalkulasi). */
-      const minLiq = clampMinPoolLiquidityUsd(input.minPoolLiquidityUsd);
-      const buyLiq = livePoolLiquidityUsd(buyPool, quoteUsd);
-      const sellLiq = livePoolLiquidityUsd(sellPool, quoteUsd);
-      const routeLiq = Math.min(buyLiq, sellLiq);
-      if (minLiq > 0 && routeLiq > 0 && routeLiq < minLiq) {
-        continue;
-      }
+    /** Early filter global: skip sebelum spread / profit (tidak log, tidak kalkulasi). */
+    const minLiq = clampMinPoolLiquidityUsd(input.minPoolLiquidityUsd);
+    const buyLiq = livePoolLiquidityUsd(buyPool, quoteUsd);
+    const sellLiq = livePoolLiquidityUsd(sellPool, quoteUsd);
+    const routeLiq = Math.min(buyLiq, sellLiq);
+    if (minLiq > 0 && routeLiq > 0 && routeLiq < minLiq) {
+      continue;
+    }
 
-      const priceDexAUsd = liveSpotPrice(buyPool);
-      const priceDexBUsd = liveSpotPrice(sellPool);
-      const spreadBps = spotSpreadBps(priceDexAUsd, priceDexBUsd);
-      if (isExtremeSpotSpread(spreadBps, MAX_SPOT_SPREAD_BPS)) continue;
+    const priceDexAUsd = liveSpotPrice(buyPool);
+    const priceDexBUsd = liveSpotPrice(sellPool);
+    const spreadBps = spotSpreadBps(priceDexAUsd, priceDexBUsd);
+    if (isExtremeSpotSpread(spreadBps, MAX_SPOT_SPREAD_BPS)) continue;
 
-      const concentrated = dexIsConcentrated(buyDex) || dexIsConcentrated(sellDex);
-      const dynamicSize = optimalFlashloanSize({
-        buyReserveQuote: buyPool.reserveQuote,
-        sellReserveQuote: sellPool.reserveQuote,
-        buyTvlUsd: buyLiq,
-        sellTvlUsd: sellLiq,
-        quoteDecimals,
-        quoteUsd,
-        concentrated,
-      });
-      const amountIn = dynamicSize.amountInWei;
-      if (amountIn <= 0n) continue;
+    const concentrated = dexIsConcentrated(buyDex) || dexIsConcentrated(sellDex);
+    const dynamicSize = optimalFlashloanSize({
+      buyReserveQuote: buyPool.reserveQuote,
+      sellReserveQuote: sellPool.reserveQuote,
+      buyTvlUsd: buyLiq,
+      sellTvlUsd: sellLiq,
+      quoteDecimals,
+      quoteUsd,
+      concentrated,
+    });
+    const amountIn = dynamicSize.amountInWei;
+    if (amountIn <= 0n) continue;
 
-      const poolCheck = evaluatePoolRouteSafety({
-        buyPool,
-        sellPool,
-        amountIn,
-        quoteUsd,
-        minPoolLiquidityUsd: input.minPoolLiquidityUsd,
-        maxPriceImpactPct: input.maxPriceImpactPct,
-      });
-      if (!poolCheck.ok) continue;
+    const poolCheck = evaluatePoolRouteSafety({
+      buyPool,
+      sellPool,
+      amountIn,
+      quoteUsd,
+      minPoolLiquidityUsd: input.minPoolLiquidityUsd,
+      maxPriceImpactPct: input.maxPriceImpactPct,
+    });
+    if (!poolCheck.ok) continue;
 
-      const gasCostQuoteWei = BigInt(usdToTokenWei(input.gasUsd, quoteDecimals, quoteUsd));
-      const routedFlash = bestFlashloanForTradingChain(chainId, {
-        poolFee: buyPool.v3Fee,
-        poolFeePct: scanPoolFeePctFromBps(buyPool.feeBps),
-      });
-      const pairEngine = {
-        ...engine,
-        minProfitWei: minProfitWeiFromLoan(amountIn).toString(),
-        flashFeePpm: routedFlash?.feePpm ?? engine.flashFeePpm,
-        aaveFeeBps: routedFlash ? feePpmToBps(routedFlash.feePpm) : engine.aaveFeeBps,
-      };
-      const result = estimateTwoDexFlashArb({
-        amountIn,
-        dynamicSize,
-        buy: {
-          reserveIn: buyPool.reserveQuote,
-          reserveOut: buyPool.reserveBase,
-          feeBps: buyPool.feeBps,
-          v3: buyPool.v3Quote,
-          zeroForOne: buyPool.quoteIsToken0,
-        },
-        sell: {
-          reserveIn: sellPool.reserveBase,
-          reserveOut: sellPool.reserveQuote,
-          feeBps: sellPool.feeBps,
-          v3: sellPool.v3Quote,
-          zeroForOne: !sellPool.quoteIsToken0,
-        },
-        gasPriceWei: gasPrice,
-        gasLimit: BigInt(engine.gasLimit),
-        config: pairEngine,
-        spotSpreadBps: spreadBps,
-        gasCostQuoteWei,
-        useSpotFill: true,
-      });
+    const gasCostQuoteWei = BigInt(usdToTokenWei(input.gasUsd, quoteDecimals, quoteUsd));
+    const routedFlash = bestFlashloanForTradingChain(chainId, {
+      poolFee: buyPool.v3Fee,
+      poolFeePct: scanPoolFeePctFromBps(buyPool.feeBps),
+    });
+    const pairEngine = {
+      ...engine,
+      minProfitWei: minProfitWeiFromLoan(amountIn).toString(),
+      flashFeePpm: routedFlash?.feePpm ?? engine.flashFeePpm,
+      aaveFeeBps: routedFlash ? feePpmToBps(routedFlash.feePpm) : engine.aaveFeeBps,
+    };
+    const result = estimateTwoDexFlashArb({
+      amountIn,
+      dynamicSize,
+      buy: {
+        reserveIn: buyPool.reserveQuote,
+        reserveOut: buyPool.reserveBase,
+        feeBps: buyPool.feeBps,
+        v3: buyPool.v3Quote,
+        zeroForOne: buyPool.quoteIsToken0,
+      },
+      sell: {
+        reserveIn: sellPool.reserveBase,
+        reserveOut: sellPool.reserveQuote,
+        feeBps: sellPool.feeBps,
+        v3: sellPool.v3Quote,
+        zeroForOne: !sellPool.quoteIsToken0,
+      },
+      gasPriceWei: gasPrice,
+      gasLimit: BigInt(engine.gasLimit),
+      config: pairEngine,
+      spotSpreadBps: spreadBps,
+      gasCostQuoteWei,
+      useSpotFill: true,
+    });
 
-      const netProfit = result.netProfit;
-      const grossProfit = result.grossProfit;
-      const loanUsdActual = tokenWeiToUsd(amountIn, quoteDecimals, quoteUsd);
-      const ready = result.profitable;
-      const grossForBribeUsd = loanUsdActual * (spreadBps / 10_000);
-      const bribeUsd = Math.max(0, grossForBribeUsd) * ((Number.isFinite(input.minerTipPct) ? input.minerTipPct : 0) / 100);
-      found.push({
-        id: `${pair.id}-${buyDex}-${sellDex}`,
-        tokenPair: pair.label,
-        tokenIn: pair.quoteSymbol,
-        tokenOut: pair.baseSymbol,
-        buyDex,
-        sellDex,
-        buyExchange: dexLabel(buyDex) || buyDex,
-        sellExchange: dexLabel(sellDex) || sellDex,
-        dexAName: dexLabel(buyDex) || buyDex,
-        dexBName: dexLabel(sellDex) || sellDex,
-        priceDexAUsd,
-        priceDexBUsd,
-        amountInWei: amountIn.toString(),
-        amountOutWei: (result.amountOut > 0n ? result.amountOut : result.repay + netProfit).toString(),
-        repayWei: result.repay.toString(),
-        spreadBps,
-        estimatedProfitWei: grossProfit.toString(),
-        gasCostWei: result.gasCost.toString(),
-        netProfitWei: netProfit.toString(),
-        flashPair: buyPool.pair,
-        amount0Out: buyPool.quoteIsToken0 ? amountIn.toString() : "0",
-        amount1Out: buyPool.quoteIsToken0 ? "0" : amountIn.toString(),
-        live: true,
-        pairId: pair.id,
-        chainId,
-        quoteDecimals,
-        quoteUsd,
-        status: ready ? "ready" : "rejected",
-        detectedBlock: input.detectedBlock,
-        reason: ready ? undefined : result.rejectReason,
-        scanPoolFeePct: scanPoolFeePctFromBps(buyPool.feeBps),
-        uniswapPoolFeePct: input.uniswapPoolFeePct,
-        buyPoolFee: buyPool.v3Fee,
-        sellPoolFee: sellPool.v3Fee,
-        poolLiquidityUsd: poolCheck.poolLiquidityUsd,
-        buyLiquidityUsd: poolCheck.buyLiquidityUsd,
-        sellLiquidityUsd: poolCheck.sellLiquidityUsd,
-        priceImpactPct: poolCheck.priceImpactPct,
-        bribeUsd,
-      });
+    const netProfit = result.netProfit;
+    const grossProfit = result.grossProfit;
+    const loanUsdActual = tokenWeiToUsd(amountIn, quoteDecimals, quoteUsd);
+    const ready = result.profitable;
+    const grossForBribeUsd = loanUsdActual * (spreadBps / 10_000);
+    const bribeUsd = Math.max(0, grossForBribeUsd) * ((Number.isFinite(input.minerTipPct) ? input.minerTipPct : 0) / 100);
+    found.push({
+      id: `${pair.id}-${buyDex}-${sellDex}`,
+      tokenPair: pair.label,
+      tokenIn: pair.quoteSymbol,
+      tokenOut: pair.baseSymbol,
+      buyDex,
+      sellDex,
+      buyExchange: dexLabel(buyDex) || buyDex,
+      sellExchange: dexLabel(sellDex) || sellDex,
+      dexAName: dexLabel(buyDex) || buyDex,
+      dexBName: dexLabel(sellDex) || sellDex,
+      priceDexAUsd,
+      priceDexBUsd,
+      amountInWei: amountIn.toString(),
+      amountOutWei: (result.amountOut > 0n ? result.amountOut : result.repay + netProfit).toString(),
+      repayWei: result.repay.toString(),
+      spreadBps,
+      estimatedProfitWei: grossProfit.toString(),
+      gasCostWei: result.gasCost.toString(),
+      netProfitWei: netProfit.toString(),
+      flashPair: buyPool.pair,
+      amount0Out: buyPool.quoteIsToken0 ? amountIn.toString() : "0",
+      amount1Out: buyPool.quoteIsToken0 ? "0" : amountIn.toString(),
+      live: true,
+      pairId: pair.id,
+      chainId,
+      quoteDecimals,
+      quoteUsd,
+      status: ready ? "ready" : "rejected",
+      detectedBlock: input.detectedBlock,
+      reason: ready ? undefined : result.rejectReason,
+      scanPoolFeePct: scanPoolFeePctFromBps(buyPool.feeBps),
+      uniswapPoolFeePct: input.uniswapPoolFeePct,
+      buyPoolFee: buyPool.v3Fee,
+      sellPoolFee: sellPool.v3Fee,
+      poolLiquidityUsd: poolCheck.poolLiquidityUsd,
+      buyLiquidityUsd: poolCheck.buyLiquidityUsd,
+      sellLiquidityUsd: poolCheck.sellLiquidityUsd,
+      priceImpactPct: poolCheck.priceImpactPct,
+      bribeUsd,
+    });
   }
 
   return found;
 }
 
 export interface ScanOptions {
-  /** Daftar pair id yang akan dipindai; default dari config.scanMode / pairId */
   pairIds?: string[];
   scanMode?: "single" | "full";
-  /**
-   * Cadangan sudah ada di RAM (log Sync/Swap).
-   * Scan tidak memanggil getReserves, slot0, atau getAmountsOut.
-   */
   eventDriven?: boolean;
-  /** Rantai milik snapshot RAM. Dipakai agar scan event tidak pindah ke chainId di config. */
   chainId?: ChainId;
   localPools?: Map<string, LivePool>;
   blockNumber?: number;
@@ -375,7 +369,7 @@ export async function scanOpportunities(options?: ScanOptions): Promise<Opportun
   const blocked = flashloanExecutionBlock(chainId);
   if (blocked) {
     const reason = `[SKIP] ${blocked}`;
-    appendServerLog(reason);
+    appendServerLog({ level: "warn", source: "SCAN", chainId, message: reason });
     console.log(reason);
     await patchBotState((current) => ({
       ...current,
@@ -393,7 +387,6 @@ export async function scanOpportunities(options?: ScanOptions): Promise<Opportun
   const gen = cycle.generation;
   const plan = scanPlanForChain(chainId, config.activeDexIds);
   const selectedDex = plan.dexIds;
-  /** Pair on-chain dari katalog jaringan aktif saja. */
   const catalog = plan.pairs;
 
   const scanMode: "single" | "full" =
@@ -431,7 +424,6 @@ export async function scanOpportunities(options?: ScanOptions): Promise<Opportun
       return [];
     }
 
-    // Solana: worker mandiri (Ankr scan + QuickNode exec) — lib/bot/solana
     if (chainId === "solana") {
       const { runSolanaWorker } = await import("@/lib/bot/solana/worker");
       const { opportunities } = await runSolanaWorker({
@@ -761,7 +753,7 @@ export async function scanOpportunities(options?: ScanOptions): Promise<Opportun
             dexIn: highlight?.dexIn || topReject?.dexAName || topReject?.buyExchange,
             dexOut: highlight?.dexOut || topReject?.dexBName || topReject?.sellExchange,
             chainId,
-          });
+        });
         console.log(skipLine);
         appendServerLog({ level: "warn", source: "SKIPPED", chainId, message: skipLine });
         if (topReject) {
@@ -794,7 +786,7 @@ export async function scanOpportunities(options?: ScanOptions): Promise<Opportun
             dexIn: highlight?.dexIn || topReject?.dexAName || topReject?.buyExchange,
             dexOut: highlight?.dexOut || topReject?.dexBName || topReject?.sellExchange,
             chainId,
-          });
+        });
         console.log(waitLine);
         appendServerLog({ level: "warn", source: "SKIPPED", chainId, message: waitLine });
       }
