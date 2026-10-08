@@ -54,15 +54,15 @@ interface WalletContextValue {
 
 const WalletContext = createContext<WalletContextValue | null>(null);
 
-function isInjectedConnector(connector: Connector): boolean {
-  return connector.type === "injected" || connector.id === "injected" || connector.id === "io.metamask";
+function isInjectedConnector(connector: any): boolean {
+  return connector?.type === "injected" || connector?.id === "injected" || connector?.id === "io.metamask";
 }
 
 function pickMetaMaskConnector(connectors: readonly Connector[]): Connector | undefined {
   const injectedConnectors = connectors.filter(isInjectedConnector);
   return (
-    injectedConnectors.find((connector) => connector.id === "io.metamask") ??
-    injectedConnectors.find((connector) => /metamask/i.test(connector.name)) ??
+    injectedConnectors.find((connector: any) => connector?.id === "io.metamask") ??
+    injectedConnectors.find((connector: any) => /metamask/i.test(connector?.name ?? "")) ??
     injectedConnectors[0]
   );
 }
@@ -80,7 +80,7 @@ function connectErrorMessage(err: unknown): string {
 
 async function connectInjectedMetaMask(
   connectors: readonly Connector[],
-  connectAsync: (parameters: { connector: Connector }) => Promise<unknown>,
+  connectAsync: (parameters: { connector: any }) => Promise<unknown>,
   openModal: () => Promise<void>,
 ) {
   if (!hasEthereumProvider()) {
@@ -93,8 +93,9 @@ async function connectInjectedMetaMask(
       target: "metaMask",
       shimDisconnect: true,
     });
-  console.log(`[WALLET] MetaMask injected · ${connector.id || connector.name}`);
-  await connectAsync({ connector });
+  const connAny = connector as any;
+  console.log(`[WALLET] MetaMask injected · ${connAny.id || connAny.name}`);
+  await connectAsync({ connector: connAny });
 }
 
 export function WalletProvider({ children }: { children: ReactNode }) {
@@ -170,7 +171,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
     setIsOpeningModal(true);
     try {
-      await connectInjectedMetaMask(connectors, connectAsync, () => open({ view: "Connect" }));
+      await connectInjectedMetaMask(connectors, connectAsync as any, () => open({ view: "Connect" }));
     } catch (err) {
       setError(connectErrorMessage(err));
     } finally {
@@ -220,7 +221,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         setIsOpeningModal(true);
         try {
           setError(null);
-          await connectInjectedMetaMask(connectors, connectAsync, () => open({ view: "Connect" }));
+          await connectInjectedMetaMask(connectors, connectAsync as any, () => open({ view: "Connect" }));
         } catch (err) {
           setError(connectErrorMessage(err));
           return;
