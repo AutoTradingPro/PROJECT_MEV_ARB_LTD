@@ -27,6 +27,7 @@
     "desktop:prepare": "node scripts/desktop-prepare.mjs",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
+    "desktop:publish-download": "node scripts/publish-core-installer.mjs",
     "cap:sync": "cap sync",
     "cap:open:android": "cap open android",
     "cap:open:ios": "cap open ios"

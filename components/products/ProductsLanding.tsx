@@ -14,6 +14,7 @@ import {
   Lock,
   type LucideIcon,
 } from "lucide-react";
+import { CORE_INSTALLER_NAME, coreInstallerHref } from "@/lib/desktopDownload";
 
 type BotStatus = "ready" | "locked";
 
@@ -43,8 +44,8 @@ const BOTS: BotProduct[] = [
     body: "Memindai spread lintas DEX, menyusun rute, dan mengeksekusi peluang dalam satu transaksi atomik dengan kontrol gas dan min-profit yang dikelola sistem.",
     status: "ready",
     href: "/mev-arb",
-    downloadHref: "/downloads/products/bot-arbitrase-spec.txt",
-    downloadName: "mev-arb-bot-arbitrase-spec.txt",
+    downloadHref: coreInstallerHref(),
+    downloadName: CORE_INSTALLER_NAME,
     iconWrap: "from-amber-400/20 to-yellow-300/5 text-amber-300",
     glow: "group-hover:shadow-[0_0_40px_rgba(251,191,36,0.16)]",
     ring: "hover:border-amber-400/45",
