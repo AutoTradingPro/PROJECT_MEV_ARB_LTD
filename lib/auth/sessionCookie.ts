@@ -12,6 +12,7 @@ export async function applySessionCookie(
     value: await signSessionToken(user),
     httpOnly: true,
     sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: WEEK_SECONDS,
   });
@@ -23,6 +24,7 @@ export function clearSessionCookie(response: NextResponse): void {
     value: "",
     httpOnly: true,
     sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: 0,
   });

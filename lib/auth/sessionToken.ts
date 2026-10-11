@@ -6,17 +6,12 @@ export const SESSION_COOKIE = "mev_core_session";
 type SessionPayload = { id: string; username: string; exp: number };
 
 function encodeB64Url(bytes: Uint8Array): string {
-  let binary = "";
-  for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i]);
-  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/g, "");
+  return Buffer.from(bytes).toString("base64").replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/g, "");
 }
 
 function decodeB64Url(value: string): Uint8Array {
   const padded = value.replaceAll("-", "+").replaceAll("_", "/") + "===".slice((value.length + 3) % 4);
-  const binary = atob(padded);
-  const out = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) out[i] = binary.charCodeAt(i);
-  return out;
+  return new Uint8Array(Buffer.from(padded, "base64"));
 }
 
 async function hmac(data: string): Promise<string> {

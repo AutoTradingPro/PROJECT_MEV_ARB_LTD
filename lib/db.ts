@@ -3,6 +3,7 @@ import path from "node:path";
 import { hashPassword, passwordPolicyError, verifyPassword } from "@/lib/auth/password";
 import { MOCK_OWNER_USERS } from "@/lib/owner/mockUsers";
 import type { OwnerUser, OwnerUserTier } from "@/lib/owner/types";
+import bundledRegister from "@/lib/users/bundled-register.json";
 
 const REGISTER_FILE = path.join(process.cwd(), "data", "user-register.json");
 
@@ -87,14 +88,22 @@ export function toOwnerUser(user: StoredUser): OwnerUser {
 }
 
 function seedUsers(): StoredUser[] {
+  const bundled = (bundledRegister as { users?: StoredUser[] }).users;
+  if (Array.isArray(bundled) && bundled.length > 0) {
+    return bundled.map((user) => ({ ...user }));
+  }
   return MOCK_OWNER_USERS.map(fromOwnerUser);
 }
 
 function writeUsers(users: StoredUser[]): void {
-  mkdirSync(path.dirname(REGISTER_FILE), { recursive: true });
-  const tmp = `${REGISTER_FILE}.tmp`;
-  writeFileSync(tmp, JSON.stringify({ users }, null, 2), "utf8");
-  renameSync(tmp, REGISTER_FILE);
+  try {
+    mkdirSync(path.dirname(REGISTER_FILE), { recursive: true });
+    const tmp = `${REGISTER_FILE}.tmp`;
+    writeFileSync(tmp, JSON.stringify({ users }, null, 2), "utf8");
+    renameSync(tmp, REGISTER_FILE);
+  } catch {
+    // Netlify / serverless filesystem is read-only.
+  }
 }
 
 /** Satu berkas untuk register, login, dan User List. */
@@ -107,7 +116,9 @@ function readUsers(): StoredUser[] {
     return parsed.users;
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
-    if (code !== "ENOENT") throw error;
+    if (code && code !== "ENOENT") {
+      return seedUsers();
+    }
     const seeded = seedUsers();
     writeUsers(seeded);
     return seeded;
