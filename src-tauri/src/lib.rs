@@ -23,6 +23,16 @@ fn port_is_up(port: u16) -> bool {
     TcpStream::connect_timeout(&addr, Duration::from_millis(400)).is_ok()
 }
 
+fn win_node_path(path: PathBuf) -> PathBuf {
+    let raw = path.to_string_lossy();
+    let stripped = raw
+        .strip_prefix(r"\\?\UNC\")
+        .map(|rest| format!(r"\\{rest}"))
+        .or_else(|| raw.strip_prefix(r"\\?\").map(str::to_string))
+        .unwrap_or_else(|| raw.into_owned());
+    PathBuf::from(stripped)
+}
+
 fn project_root() -> PathBuf {
     std::env::var("MEV_CORE_ROOT")
         .map(PathBuf::from)
@@ -100,13 +110,13 @@ fn chrono_like_now() -> String {
 }
 
 fn spawn_core(app: &AppHandle) -> Option<Child> {
-    let root = core_root(app);
-    let runtime = if root.join("core-runtime.mjs").is_file() {
+    let root = win_node_path(core_root(app));
+    let runtime = win_node_path(if root.join("core-runtime.mjs").is_file() {
         root.join("core-runtime.mjs")
     } else {
         project_root().join("scripts").join("core-standalone.mjs")
-    };
-    let node = node_bin(app);
+    });
+    let node = win_node_path(node_bin(app));
     spawn_log(&format!(
         "node={} exists={} runtime={} exists={} cwd={} exists={}",
         node.display(),

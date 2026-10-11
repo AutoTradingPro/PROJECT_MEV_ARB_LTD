@@ -56,14 +56,14 @@ export function useMevCoreLive(chainId: string) {
     };
   }, []);
 
-  const rows = useMemo(
-    () => feed.filter((row) => sameChain(row.chainId, chainId)),
-    [feed, chainId]
-  );
-  const lines = useMemo(
-    () => logs.filter((line) => !line.chainId || sameChain(line.chainId, chainId)),
-    [logs, chainId]
-  );
+  const rows = useMemo(() => {
+    const matched = feed.filter((row) => sameChain(row.chainId, chainId));
+    return matched.length > 0 || !chainId ? matched : feed;
+  }, [feed, chainId]);
+  const lines = useMemo(() => {
+    const matched = logs.filter((line) => !line.chainId || sameChain(line.chainId, chainId));
+    return matched.length > 0 || !chainId ? matched : logs;
+  }, [logs, chainId]);
 
   return { rows, lines, connected };
 }
