@@ -1,6 +1,6 @@
 [package]
 name = "mev-core-engine"
-version = "0.1.1"
+version = "0.1.2"
 description = "Desktop wrapper for the MEV Core Engine local server"
 authors = ["MEV ARB"]
 edition = "2021"
