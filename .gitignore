@@ -51,5 +51,7 @@ next-env.d.ts
 # desktop wrapper
 /src-tauri/target
 /src-tauri/gen
+/src-tauri/binaries/*.exe
+/src-tauri/resources/core
 /android
 /ios

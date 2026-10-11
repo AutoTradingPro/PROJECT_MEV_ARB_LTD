@@ -18,40 +18,37 @@
         width: min(28rem, calc(100% - 2rem));
         text-align: center;
       }
-      a {
-        color: #6ee7b7;
-      }
     </style>
   </head>
   <body>
     <main>
       <h1>MEV Core Engine</h1>
-      <p id="status">Menyalakan server lokal…</p>
-      <p><a href="http://127.0.0.1:4100/">Buka http://127.0.0.1:4100</a></p>
+      <p id="status">Menyalakan server lokal di http://127.0.0.1:4100 …</p>
     </main>
     <script>
-      const local = "http://127.0.0.1:4100/";
-      const live = "https://mevarbtech.netlify.app/engine";
+      const local = "http://127.0.0.1:4100/engine";
       const status = document.getElementById("status");
-      async function localReady() {
+      async function ready() {
         try {
           const res = await fetch(local, { method: "GET", cache: "no-store" });
-          const text = await res.text();
-          return res.ok && !text.includes("belum berjalan di port 3000");
+          return res.ok;
         } catch {
           return false;
         }
       }
-      async function openCore() {
-        if (await localReady()) {
-          status.textContent = "Server lokal siap. Membuka Core Engine…";
-          location.replace(local);
-          return;
+      async function waitForCore() {
+        for (let i = 0; i < 90; i += 1) {
+          if (await ready()) {
+            location.replace(local);
+            return;
+          }
+          status.textContent = "Menunggu backend lokal (" + (i + 1) + "/90)…";
+          await new Promise((resolve) => setTimeout(resolve, 1000));
         }
-        status.textContent = "Membuka Core Engine online…";
-        location.replace(live);
+        status.textContent =
+          "Backend lokal tidak menjawab di port 4100. Tutup aplikasi lalu buka lagi MEV Core Engine.";
       }
-      openCore();
+      waitForCore();
     </script>
   </body>
 </html>
