@@ -1,26 +1,22 @@
 "use client";
 
-import { LogOut, Radio, ShieldAlert } from "lucide-react";
+import { LogOut, Radio } from "lucide-react";
 import MevArbHeaderLogo from "@/components/brand/MevArbHeaderLogo";
 
 interface MevCoreHeaderProps {
   live: boolean;
   killed: boolean;
   rpcMs: number | null;
-  pending: boolean;
   username?: string;
   onLogout?: () => void;
-  onKillToggle: () => void;
 }
 
 export default function MevCoreHeader({
   live,
   killed,
   rpcMs,
-  pending,
   username,
   onLogout,
-  onKillToggle,
 }: MevCoreHeaderProps) {
   const healthy = rpcMs != null && rpcMs < 250 && !killed;
   return (
@@ -53,15 +49,6 @@ export default function MevCoreHeader({
             {healthy ? "Optimal" : killed ? "Paused" : "Degraded"}
           </span>
         </div>
-        <button
-          type="button"
-          onClick={onKillToggle}
-          disabled={pending}
-          className="inline-flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-rose-500/70 bg-rose-950/40 px-3 text-xs font-black uppercase tracking-wider text-rose-200 shadow-[0_0_18px_rgba(244,63,94,0.25)] transition hover:bg-rose-900/50 disabled:cursor-wait disabled:opacity-60 sm:w-auto"
-        >
-          <ShieldAlert className="h-4 w-4" />
-          {pending ? "Working…" : killed ? "Resume Engine" : "Emergency Kill Switch"}
-        </button>
         {onLogout || username ? (
           <div className="flex w-full flex-col items-stretch gap-1 sm:w-auto sm:items-end">
             {onLogout ? (

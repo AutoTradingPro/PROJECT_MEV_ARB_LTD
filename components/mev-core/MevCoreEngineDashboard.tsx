@@ -167,12 +167,14 @@ export default function MevCoreEngineDashboard({ username, onLogout }: MevCoreEn
         live={running || live.connected}
         killed={killed}
         rpcMs={rpcMs}
-        pending={pending}
         username={username}
         onLogout={onLogout}
+      />
+      <ScanOnlyModeToggle
+        killed={killed}
+        pending={pending}
         onKillToggle={() => void onKillToggle()}
       />
-      <ScanOnlyModeToggle />
       <MevCoreMetrics
         profitEth={profitEth}
         profitUsd={profitUsd}
