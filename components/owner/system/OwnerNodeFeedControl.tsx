@@ -1,5 +1,7 @@
 "use client";
 
+import { apiUrl } from "@/lib/apiBase";
+
 import { useCallback, useEffect, useState } from "react";
 import { Radio, Server } from "lucide-react";
 import { useRpcLiveFeed } from "@/context/RpcLiveFeedContext";
@@ -63,7 +65,7 @@ export default function OwnerNodeFeedControl() {
 
   const loadLogs = useCallback(async () => {
     try {
-      const res = await fetch("/api/owner/system-control", { cache: "no-store" });
+      const res = await fetch(apiUrl("/api/owner/system-control"), { cache: "no-store" });
       const json = (await res.json()) as { logs?: NodeFeedLogEntry[] };
       if (res.ok && json.logs) setLogs(json.logs);
     } catch {

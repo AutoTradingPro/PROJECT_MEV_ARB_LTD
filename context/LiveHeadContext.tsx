@@ -1,5 +1,7 @@
 "use client";
 
+import { apiUrl } from "@/lib/apiBase";
+
 import {
   createContext,
   useCallback,
@@ -66,7 +68,7 @@ function pickHeadBlock(prev: number, next: number): number {
 }
 
 async function fetchHeadFromApi(chainId: ChainId): Promise<HeadPayload | null> {
-  const res = await fetch(`/api/chain/head?chain=${chainId}`, { cache: "no-store" });
+  const res = await fetch(apiUrl(`/api/chain/head?chain=${chainId}`), { cache: "no-store" });
   if (!res.ok) return null;
   return (await res.json()) as HeadPayload;
 }
@@ -283,7 +285,7 @@ function useLiveBlockFeed(chainId: ChainId, evm: boolean, enabled = true): LiveH
       }
     };
 
-    void fetch(`/api/chain/endpoints?chain=${activeChain}`, { cache: "no-store" })
+    void fetch(apiUrl(`/api/chain/endpoints?chain=${activeChain}`), { cache: "no-store" })
       .then(async (response) => {
         if (!response.ok) return;
         const data = (await response.json()) as {

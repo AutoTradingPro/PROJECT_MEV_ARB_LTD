@@ -1,5 +1,7 @@
 "use client";
 
+import { apiUrl } from "@/lib/apiBase";
+
 import {
   createContext,
   useCallback,
@@ -16,7 +18,7 @@ import type { BotMode } from "@/lib/scanOnly/types";
 const STORAGE_KEY = "mev-arb-bot-mode";
 
 function publishBotMode(mode: BotMode) {
-  void fetch("/api/config/toggle-execute", {
+  void fetch(apiUrl("/api/config/toggle-execute"), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ botMode: mode }),

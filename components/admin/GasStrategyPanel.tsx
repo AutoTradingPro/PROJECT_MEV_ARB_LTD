@@ -1,5 +1,7 @@
 "use client";
 
+import { apiUrl } from "@/lib/apiBase";
+
 import { Gauge } from "lucide-react";
 import { useBotConfig } from "@/context/BotConfigContext";
 import { gasPriceToGwei } from "@/lib/bot/autoExecute";
@@ -26,7 +28,7 @@ export default function GasStrategyPanel({ liveGasWei = "0" }: GasStrategyPanelP
     let cancelled = false;
     const load = async () => {
       try {
-        const res = await fetch(`/api/bot?t=${Date.now()}`, { cache: "no-store" });
+        const res = await fetch(apiUrl(`/api/bot?t=${Date.now()}`), { cache: "no-store" });
         const json = (await res.json()) as {
           autonomousSigner?: { ready?: boolean; address?: string; matchesOwner?: boolean; source?: string };
         };

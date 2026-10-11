@@ -1,5 +1,7 @@
 "use client";
 
+import { apiUrl } from "@/lib/apiBase";
+
 import { useState } from "react";
 import { Bell, CheckCircle2, LoaderCircle } from "lucide-react";
 
@@ -13,7 +15,7 @@ export default function TelegramTestPanel() {
     setPhase("loading");
     setMessage(null);
     try {
-      const res = await fetch("/api/telegram/test", { method: "POST" });
+      const res = await fetch(apiUrl("/api/telegram/test"), { method: "POST" });
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) {
         setPhase("error");

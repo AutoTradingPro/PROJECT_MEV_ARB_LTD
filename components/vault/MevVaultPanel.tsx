@@ -1,5 +1,7 @@
 "use client";
 
+import { apiUrl } from "@/lib/apiBase";
+
 import { useEffect, useState } from "react";
 import { useAccount, useChainId, useConfig, useReadContract, useReadContracts, useSwitchChain } from "wagmi";
 import { erc20Abi, formatUnits, parseUnits } from "viem";
@@ -89,7 +91,7 @@ export default function MevVaultPanel() {
   useEffect(() => {
     if (!address) return;
     let cancel = false;
-    fetch(`/api/vault/activity?wallet=${address}&chainId=${MEV_VAULT_CHAIN_ID}`)
+    fetch(apiUrl(`/api/vault/activity?wallet=${address}&chainId=${MEV_VAULT_CHAIN_ID}`))
       .then((res) => res.json())
       .then((body: { indexed?: boolean; events?: VaultEventRow[] }) => {
         if (cancel) return;

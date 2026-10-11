@@ -22,40 +22,73 @@ function allowed(pathname) {
   return (
     pathname === "/" ||
     pathname.startsWith("/_next/") ||
-    pathname.startsWith("/api/bot") ||
-    pathname.startsWith("/api/operator") ||
-    pathname === "/api/config/toggle-execute" ||
-    pathname.startsWith("/api/users") ||
-    pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/api/") ||
     pathname === "/manifest.webmanifest" ||
     pathname === "/sw.js" ||
     pathname === "/favicon.ico" ||
     pathname === "/favicon-16x16.png" ||
     pathname === "/favicon-32x32.png" ||
     pathname === "/apple-touch-icon.png" ||
-    pathname === "/images/logo-mevarb.png"
+    pathname.startsWith("/images/")
   );
+}
+
+function normalizePath(pathname) {
+  let next = String(pathname || "/").replace(/\/{2,}/g, "/");
+  if (next.startsWith("/engine/api/")) next = next.slice("/engine".length);
+  return next;
 }
 
 function swallow(stream) {
   stream.on("error", () => {});
 }
 
+const corsOrigins = new Set([
+  "http://127.0.0.1:4100",
+  "http://localhost:4100",
+  "http://127.0.0.1:3000",
+  "http://localhost:3000",
+]);
+
+function corsHeaders(req) {
+  const origin = req.headers.origin;
+  if (!origin) return {};
+  const local =
+    corsOrigins.has(origin) ||
+    /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/.test(origin) ||
+    origin.startsWith("tauri://") ||
+    /\.localhost(?::\d+)?$/.test(origin);
+  if (!local) return {};
+  return {
+    "access-control-allow-origin": origin,
+    "access-control-allow-credentials": "true",
+    "access-control-allow-headers": "content-type",
+    "access-control-allow-methods": "GET,POST,PATCH,PUT,DELETE,OPTIONS",
+    vary: "Origin",
+  };
+}
+
 function forward(req, res) {
   swallow(req);
   swallow(res);
   const incoming = new URL(req.url || "/", "http://127.0.0.1");
-  if (incoming.pathname === "/engine" || incoming.pathname.startsWith("/engine/")) {
+  const pathname = normalizePath(incoming.pathname);
+  if (req.method === "OPTIONS") {
+    res.writeHead(204, corsHeaders(req));
+    res.end();
+    return;
+  }
+  if (pathname === "/engine" || pathname.startsWith("/engine/")) {
     res.writeHead(302, { location: `/${incoming.search}` });
     res.end();
     return;
   }
-  if (!allowed(incoming.pathname)) {
-    res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
+  if (!allowed(pathname)) {
+    res.writeHead(404, { "content-type": "text/plain; charset=utf-8", ...corsHeaders(req) });
     res.end("MEV Core Engine saja. Dashboard owner tidak tersedia di port ini.");
     return;
   }
-  const path = (incoming.pathname === "/" ? "/engine" : incoming.pathname) + incoming.search;
+  const path = (pathname === "/" ? "/engine" : pathname) + incoming.search;
   const proxy = http.request(
     {
       hostname: upstream.hostname,
@@ -66,14 +99,14 @@ function forward(req, res) {
     },
     (up) => {
       swallow(up);
-      res.writeHead(up.statusCode || 502, up.headers);
+      res.writeHead(up.statusCode || 502, { ...up.headers, ...corsHeaders(req) });
       up.pipe(res);
     }
   );
   swallow(proxy);
   proxy.on("error", () => {
     if (res.headersSent) return;
-    res.writeHead(502, { "content-type": "text/plain; charset=utf-8" });
+    res.writeHead(502, { "content-type": "text/plain; charset=utf-8", ...corsHeaders(req) });
     res.end("Webapp utama belum berjalan di port 3000.");
   });
   req.pipe(proxy);

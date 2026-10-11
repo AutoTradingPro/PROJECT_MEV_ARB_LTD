@@ -1,5 +1,7 @@
 "use client";
 
+import { apiUrl } from "@/lib/apiBase";
+
 import { useCallback, useEffect, useState } from "react";
 import { Power, PowerOff, ShieldAlert } from "lucide-react";
 
@@ -16,7 +18,7 @@ export default function OwnerKillSwitch() {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`/api/bot?t=${Date.now()}`, { cache: "no-store" });
+      const res = await fetch(apiUrl(`/api/bot?t=${Date.now()}`), { cache: "no-store" });
       const json = (await res.json()) as BotKillState;
       if (typeof json.killed === "boolean") setKilled(json.killed);
       setError(null);
@@ -40,7 +42,7 @@ export default function OwnerKillSwitch() {
     }
     setPending(action);
     try {
-      const res = await fetch("/api/bot", {
+      const res = await fetch(apiUrl("/api/bot"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ action }),

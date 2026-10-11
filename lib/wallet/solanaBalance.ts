@@ -1,3 +1,4 @@
+import { apiUrl } from "@/lib/apiBase";
 /**
  * Client-safe Solana balance fetch via server API (RPC credentials stay server-only).
  */
@@ -7,7 +8,7 @@ export async function fetchSolanaWalletBalance(address: string): Promise<{
 }> {
   const addr = (address || "").trim();
   if (!addr) return { balance: "0", lamports: "0" };
-  const res = await fetch(`/api/wallet/solana-balance?address=${encodeURIComponent(addr)}`, {
+  const res = await fetch(apiUrl(`/api/wallet/solana-balance?address=${encodeURIComponent(addr)}`), {
     cache: "no-store",
   });
   const json = (await res.json()) as {

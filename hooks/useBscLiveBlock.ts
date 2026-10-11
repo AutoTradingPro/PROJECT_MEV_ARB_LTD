@@ -1,5 +1,7 @@
 "use client";
 
+import { apiUrl } from "@/lib/apiBase";
+
 import { useEffect, useRef, useState } from "react";
 import { useRpcLiveFeed } from "@/context/RpcLiveFeedContext";
 import { isBlockmachineHost } from "@/config/blockmachine";
@@ -16,7 +18,7 @@ interface HeadPayload {
 }
 
 async function fetchHeadFromApi(): Promise<HeadPayload | null> {
-  const res = await fetch("/api/chain/head?chain=polygon", { cache: "no-store" });
+  const res = await fetch(apiUrl("/api/chain/head?chain=polygon"), { cache: "no-store" });
   if (!res.ok) return null;
   return (await res.json()) as HeadPayload;
 }

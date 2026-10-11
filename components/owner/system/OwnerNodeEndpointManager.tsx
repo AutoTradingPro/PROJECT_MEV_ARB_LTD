@@ -1,5 +1,7 @@
 "use client";
 
+import { apiUrl } from "@/lib/apiBase";
+
 import { type ChainId, getChain } from "@/lib/chain/networks";
 import { OWNER_NODE_CHAIN_IDS, type OwnerNodeChainId } from "@/lib/owner/ownerNodeChains";
 import type { ChainNodeConfig } from "@/lib/owner/nodeEndpoints";
@@ -141,7 +143,7 @@ export default function OwnerNodeEndpointManager() {
 
   const load = useCallback(async () => {
     try {
-      const response = await fetch("/api/owner/nodes", { cache: "no-store" });
+      const response = await fetch(apiUrl("/api/owner/nodes"), { cache: "no-store" });
       const data = (await response.json()) as { nodes?: Record<ChainId, ChainNodeConfig> };
       if (response.ok && data.nodes) {
         setNodes((prev) => {
@@ -174,7 +176,7 @@ export default function OwnerNodeEndpointManager() {
     setSaving(true);
     setNotice(null);
     try {
-      const response = await fetch("/api/owner/nodes", {
+      const response = await fetch(apiUrl("/api/owner/nodes"), {
         method: "PUT",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ nodes }),
@@ -202,7 +204,7 @@ export default function OwnerNodeEndpointManager() {
     setPinging(true);
     setNotice(null);
     try {
-      const response = await fetch("/api/owner/nodes", {
+      const response = await fetch(apiUrl("/api/owner/nodes"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ all: true }),

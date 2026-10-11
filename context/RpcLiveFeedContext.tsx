@@ -1,5 +1,7 @@
 "use client";
 
+import { apiUrl } from "@/lib/apiBase";
+
 import {
   createContext,
   useCallback,
@@ -162,7 +164,7 @@ export function RpcLiveFeedProvider({ children }: { children: ReactNode }) {
 
   const hydrateFromApi = useCallback(async () => {
     try {
-      const res = await fetch("/api/owner/system-control", { cache: "no-store" });
+      const res = await fetch(apiUrl("/api/owner/system-control"), { cache: "no-store" });
       if (!res.ok) return;
       const data = (await res.json()) as { quota?: PersistedFeed };
       if (!data.quota) return;
@@ -214,7 +216,7 @@ export function RpcLiveFeedProvider({ children }: { children: ReactNode }) {
   }, [applyLocal, hydrateFromApi]);
 
   const postChannel = useCallback((channel: NodeFeedChannel, enabled: boolean) => {
-    void fetch("/api/owner/system-control", {
+    void fetch(apiUrl("/api/owner/system-control"), {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ channel, enabled }),
@@ -270,7 +272,7 @@ export function RpcLiveFeedProvider({ children }: { children: ReactNode }) {
         rpcPrimary: rpcPrimaryRef.current,
         rpcBackup: rpcBackupRef.current,
       });
-      void fetch("/api/owner/system-control", {
+      void fetch(apiUrl("/api/owner/system-control"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ channel: "chain", chainId, enabled }),
@@ -290,7 +292,7 @@ export function RpcLiveFeedProvider({ children }: { children: ReactNode }) {
         rpcPrimary: nextPrimary,
         rpcBackup: rpcBackupRef.current,
       });
-      void fetch("/api/owner/system-control", {
+      void fetch(apiUrl("/api/owner/system-control"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ channel: "rpc-primary", chainId, enabled }),
@@ -310,7 +312,7 @@ export function RpcLiveFeedProvider({ children }: { children: ReactNode }) {
         rpcPrimary: rpcPrimaryRef.current,
         rpcBackup: nextBackup,
       });
-      void fetch("/api/owner/system-control", {
+      void fetch(apiUrl("/api/owner/system-control"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ channel: "rpc-backup", chainId, enabled }),

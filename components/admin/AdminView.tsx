@@ -1,5 +1,7 @@
 "use client";
 
+import { apiUrl } from "@/lib/apiBase";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
@@ -250,7 +252,7 @@ export default function AdminView({ embedded = false }: AdminViewProps) {
     let cancelled = false;
     const loadGas = async () => {
       try {
-        const res = await fetch(`/api/chain/head?chain=${chainId}`, { cache: "no-store" });
+        const res = await fetch(apiUrl(`/api/chain/head?chain=${chainId}`), { cache: "no-store" });
         const json = (await res.json()) as { gasPriceWei?: string };
         if (!cancelled && json.gasPriceWei) setGasPriceWei(json.gasPriceWei);
       } catch {

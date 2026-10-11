@@ -1,5 +1,7 @@
 "use client";
 
+import { apiUrl } from "@/lib/apiBase";
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CORE_CHAINS } from "@/components/mev-core/chains";
 import MevCoreConsole from "@/components/mev-core/MevCoreConsole";
@@ -66,7 +68,7 @@ export default function MevCoreEngineDashboard({ username, onLogout }: MevCoreEn
   const load = useCallback(async () => {
     const started = performance.now();
     try {
-      const res = await fetch(`/api/bot?t=${Date.now()}`, { cache: "no-store" });
+      const res = await fetch(apiUrl(`/api/bot?t=${Date.now()}`), { cache: "no-store" });
       const json = (await res.json()) as BotSnapshot;
       setRpcMs(Math.max(1, Math.round(performance.now() - started)));
       setKilled(Boolean(json.killed));
@@ -104,7 +106,7 @@ export default function MevCoreEngineDashboard({ username, onLogout }: MevCoreEn
     }
     setPending(true);
     try {
-      const res = await fetch("/api/bot", {
+      const res = await fetch(apiUrl("/api/bot"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ action }),
@@ -124,7 +126,7 @@ export default function MevCoreEngineDashboard({ username, onLogout }: MevCoreEn
     setChainId(nextChainId);
     setVault(null);
     try {
-      const res = await fetch("/api/bot", {
+      const res = await fetch(apiUrl("/api/bot"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ action: "adopt-chain", manual: true, config: { chainId: nextChainId } }),

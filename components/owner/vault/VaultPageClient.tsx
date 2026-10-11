@@ -1,5 +1,7 @@
 "use client";
 
+import { apiUrl } from "@/lib/apiBase";
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import VaultGate from "@/components/owner/vault/VaultGate";
 import VaultInterior from "@/components/owner/vault/VaultInterior";
@@ -41,7 +43,7 @@ export default function VaultPageClient() {
   const lockVault = useCallback(async () => {
     const stored = typeof window !== "undefined" ? sessionStorage.getItem(TOKEN_KEY) || "" : "";
     try {
-      await fetch("/api/owner/vault/lock", {
+      await fetch(apiUrl("/api/owner/vault/lock"), {
         method: "POST",
         headers: { [VAULT_HEADER]: stored },
       });
@@ -60,7 +62,7 @@ export default function VaultPageClient() {
   const refreshBalances = useCallback(async (sessionToken: string) => {
     setLoadingBalances(true);
     try {
-      const response = await fetch("/api/owner/vault/balances", {
+      const response = await fetch(apiUrl("/api/owner/vault/balances"), {
         headers: { [VAULT_HEADER]: sessionToken },
         cache: "no-store",
       });
@@ -86,7 +88,7 @@ export default function VaultPageClient() {
 
   const hydrate = useCallback(
     async (sessionToken: string) => {
-      const response = await fetch("/api/owner/vault", {
+      const response = await fetch(apiUrl("/api/owner/vault"), {
         headers: { [VAULT_HEADER]: sessionToken },
         cache: "no-store",
       });
@@ -149,7 +151,7 @@ export default function VaultPageClient() {
     setUnlocking(true);
     setError(null);
     try {
-      const response = await fetch("/api/owner/vault/unlock", {
+      const response = await fetch(apiUrl("/api/owner/vault/unlock"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ password }),
@@ -177,7 +179,7 @@ export default function VaultPageClient() {
   }) {
     setSaving(true);
     try {
-      const response = await fetch("/api/owner/vault", {
+      const response = await fetch(apiUrl("/api/owner/vault"), {
         method: "PATCH",
         headers: headers({ "content-type": "application/json" }),
         body: JSON.stringify(patch),

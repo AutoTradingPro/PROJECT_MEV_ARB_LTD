@@ -1,5 +1,7 @@
 "use client";
 
+import { apiUrl } from "@/lib/apiBase";
+
 import { useEffect, useRef, useState } from "react";
 import { useRpcLiveFeed } from "@/context/RpcLiveFeedContext";
 import { useNetwork } from "@/context/NetworkContext";
@@ -56,7 +58,7 @@ export function useLiveNetworkFees(chainId: ChainId, evm: boolean): LiveNetworkF
       if (stopped || inflight.current) return;
       inflight.current = true;
       try {
-        const response = await fetch(`/api/chain/head?chain=${activeChain}`, { cache: "no-store" });
+        const response = await fetch(apiUrl(`/api/chain/head?chain=${activeChain}`), { cache: "no-store" });
         const data = (await response.json()) as HeadPayload;
         if (stopped) return;
         const wei = typeof data.gasPriceWei === "string" ? data.gasPriceWei : "0";

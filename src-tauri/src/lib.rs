@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use tauri::Manager;
 
 const CORE_ADDR: &str = "127.0.0.1:4100";
 

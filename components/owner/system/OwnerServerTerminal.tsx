@@ -1,5 +1,7 @@
 "use client";
 
+import { apiUrl } from "@/lib/apiBase";
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Terminal, Trash2 } from "lucide-react";
 import type { ServerLogEntry, ServerLogLevel } from "@/lib/bot/serverLog";
@@ -28,7 +30,7 @@ export default function OwnerServerTerminal() {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch("/api/owner/logs", { cache: "no-store" });
+      const res = await fetch(apiUrl("/api/owner/logs"), { cache: "no-store" });
       const json = (await res.json()) as { logs?: ServerLogEntry[] };
       if (res.ok && json.logs) {
         setLogs(json.logs);
@@ -51,7 +53,7 @@ export default function OwnerServerTerminal() {
   }, [logs]);
 
   const clear = async () => {
-    await fetch("/api/owner/logs", { method: "DELETE" });
+    await fetch(apiUrl("/api/owner/logs"), { method: "DELETE" });
     await load();
   };
 

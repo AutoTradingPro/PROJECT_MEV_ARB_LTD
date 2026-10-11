@@ -1,5 +1,7 @@
 "use client";
 
+import { apiUrl } from "@/lib/apiBase";
+
 import {
   createContext,
   useCallback,
@@ -72,7 +74,7 @@ export function BotConfigProvider({
     writeStoredConfig(next);
     if (persistTimer.current) clearTimeout(persistTimer.current);
     persistTimer.current = setTimeout(() => {
-      void fetch("/api/bot", {
+      void fetch(apiUrl("/api/bot"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ action: "config", config: next }),
@@ -87,7 +89,7 @@ export function BotConfigProvider({
     const boot = async () => {
       const stored = readStoredConfig();
       try {
-        const res = await fetch(`/api/bot?t=${Date.now()}`, {
+        const res = await fetch(apiUrl(`/api/bot?t=${Date.now()}`), {
           cache: "no-store",
           headers: { pragma: "no-cache" },
         });

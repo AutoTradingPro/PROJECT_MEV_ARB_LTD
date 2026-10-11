@@ -1,5 +1,7 @@
 "use client";
 
+import { apiUrl } from "@/lib/apiBase";
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type ButtonPhase } from "@/components/ArbitrageMatrixUtama";
 import DashboardTopControls from "@/components/DashboardTopControls";
@@ -239,7 +241,7 @@ export default function ControlCenter() {
   const refresh = useCallback(async () => {
     if (sandboxRef.current) return null;
     try {
-      const res = await fetch(`/api/bot?t=${Date.now()}`, {
+      const res = await fetch(apiUrl(`/api/bot?t=${Date.now()}`), {
         cache: "no-store",
         headers: { pragma: "no-cache" },
       });
@@ -298,7 +300,7 @@ export default function ControlCenter() {
     if (scanOnlyRef.current) {
       const scanConfig = configRef.current;
       try {
-        const res = await fetch("/api/scan-only", {
+        const res = await fetch(apiUrl("/api/scan-only"), {
           method: "POST",
           headers: { "content-type": "application/json" },
           signal: ac.signal,
@@ -343,7 +345,7 @@ export default function ControlCenter() {
     const pairIds = resolveScanPairIds();
     const scanConfig = configRef.current;
     try {
-      const scanEndpoint = isSandbox ? "/api/sandbox" : "/api/bot";
+      const scanEndpoint = isSandbox ? apiUrl("/api/sandbox") : apiUrl("/api/bot");
       const res = await fetch(scanEndpoint, {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -391,7 +393,7 @@ export default function ControlCenter() {
       if (!json) throw new Error("scan gagal");
       if (!res.ok) throw new Error(json.error || "scan gagal");
       if (epoch !== scanEpochRef.current || ac.signal.aborted) return;
-      const scanWasSandbox = scanEndpoint === "/api/sandbox";
+      const scanWasSandbox = scanEndpoint === apiUrl("/api/sandbox");
       if (scanWasSandbox !== sandboxRef.current) return;
       const scannedChain = normalizeTradingChainId(json.chainId || json.config?.chainId || chainId);
       if (!scanWasSandbox && scannedChain !== chainId) return;
@@ -543,7 +545,7 @@ export default function ControlCenter() {
     if (!isPro || state.killed || !flashLoanArmed) return;
     if (!(scannerEnabled || isSandbox)) return;
     const ping = () => {
-      void fetch("/api/bot", {
+      void fetch(apiUrl("/api/bot"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -621,7 +623,7 @@ export default function ControlCenter() {
         lastError: undefined,
       }));
       try {
-        await fetch("/api/bot", {
+        await fetch(apiUrl("/api/bot"), {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
@@ -704,7 +706,7 @@ export default function ControlCenter() {
         `[SANDBOX] ${opp.tokenPair} · ${opp.buyExchange} → ${opp.sellExchange} · virtual pool · dumping Transaction`
       );
       try {
-        const res = await fetch("/api/sandbox", {
+        const res = await fetch(apiUrl("/api/sandbox"), {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
@@ -809,7 +811,7 @@ export default function ControlCenter() {
         `[EXEC] ${gate.mode.toUpperCase()} otonom · antrian ${queueSize} kandidat · mulai ${opp.tokenPair} · ${opp.buyExchange} → ${opp.sellExchange}`
       );
       try {
-        const res = await fetch("/api/bot", {
+        const res = await fetch(apiUrl("/api/bot"), {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
@@ -875,7 +877,7 @@ export default function ControlCenter() {
         const message = formatWalletError(err);
         pushExecFailure(push, message, execConfig, chainId);
         setTxNotify({ id: `err-${Date.now()}`, tone: "error", title: "Transaksi gagal", message });
-        void fetch("/api/bot", {
+        void fetch(apiUrl("/api/bot"), {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
@@ -904,7 +906,7 @@ export default function ControlCenter() {
       `[EXEC] ${opp.tokenPair} · ${opp.buyExchange} → ${opp.sellExchange} · menyusun calldata`
     );
     try {
-      const res = await fetch("/api/bot", {
+      const res = await fetch(apiUrl("/api/bot"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -940,7 +942,7 @@ export default function ControlCenter() {
         }));
         push("profit", `[PROFIT] +${formatOpportunityNet(opp, 4, chain.nativeSymbol)} net · tx ${shortenTxHash(txHash)}`);
       }
-      await fetch("/api/bot", {
+      await fetch(apiUrl("/api/bot"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -983,7 +985,7 @@ export default function ControlCenter() {
         message,
       });
       if (!isUserRejectedExec(message)) {
-        void fetch("/api/bot", {
+        void fetch(apiUrl("/api/bot"), {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
@@ -1026,7 +1028,7 @@ export default function ControlCenter() {
     try {
       if (isSandbox) {
         const ready = displayOpportunities.find((item) => item.status === "ready");
-        const res = await fetch("/api/sandbox", {
+        const res = await fetch(apiUrl("/api/sandbox"), {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
@@ -1040,7 +1042,7 @@ export default function ControlCenter() {
         flashPhase(setSimulatePhase, json.simulated ? "success" : "error", 2200);
         return;
       }
-      const res = await fetch("/api/bot", {
+      const res = await fetch(apiUrl("/api/bot"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ action: "simulate", to: walletAddress || undefined }),
@@ -1060,7 +1062,7 @@ export default function ControlCenter() {
     setScannerEnabled(false);
     setState((current) => ({ ...current, killed: true, running: false }));
     try {
-      const res = await fetch("/api/bot", {
+      const res = await fetch(apiUrl("/api/bot"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ action: "kill" }),
@@ -1088,7 +1090,7 @@ export default function ControlCenter() {
     setPendingSwitch("resume");
     setState((current) => ({ ...current, killed: false }));
     try {
-      const res = await fetch("/api/bot", {
+      const res = await fetch(apiUrl("/api/bot"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ action: "resume" }),
@@ -1138,7 +1140,7 @@ export default function ControlCenter() {
     }
     setPendingSwitch("withdraw");
     try {
-      const res = await fetch("/api/bot", {
+      const res = await fetch(apiUrl("/api/bot"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
