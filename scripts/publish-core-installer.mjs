@@ -1,4 +1,4 @@
-import { copyFileSync, mkdirSync, readdirSync } from "node:fs";
+import { copyFileSync, mkdirSync, readdirSync, statSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -17,11 +17,12 @@ function listDirs(dir) {
   }
 }
 
-function firstMatch(dir, test) {
+function newestMatch(dir, test) {
   try {
     return readdirSync(dir)
       .filter((name) => test(name))
-      .map((name) => path.join(dir, name))[0];
+      .map((name) => path.join(dir, name))
+      .sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs)[0];
   } catch {
     return undefined;
   }
@@ -36,9 +37,16 @@ const bundleRoots = [
 const nsisDirs = bundleRoots.map((dir) => path.join(dir, "release", "bundle", "nsis"));
 const msiDirs = bundleRoots.map((dir) => path.join(dir, "release", "bundle", "msi"));
 
+function newestAcross(dirs, test) {
+  return dirs
+    .map((dir) => newestMatch(dir, test))
+    .filter(Boolean)
+    .sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs)[0];
+}
+
 const source =
-  nsisDirs.map((dir) => firstMatch(dir, (name) => name.toLowerCase().endsWith("-setup.exe"))).find(Boolean) ||
-  msiDirs.map((dir) => firstMatch(dir, (name) => name.toLowerCase().endsWith(".msi"))).find(Boolean);
+  newestAcross(nsisDirs, (name) => name.toLowerCase().endsWith("-setup.exe")) ||
+  newestAcross(msiDirs, (name) => name.toLowerCase().endsWith(".msi"));
 
 if (!source) {
   console.error("[desktop] Installer belum ada. Jalankan dulu: npm run tauri:build");
