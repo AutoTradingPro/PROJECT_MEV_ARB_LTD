@@ -6,9 +6,22 @@ use std::time::Duration;
 use tauri::Manager;
 
 const CORE_ADDR: &str = "127.0.0.1:4100";
+const LIVE_CORE_URL: &str = "https://mevarbtech.netlify.app/engine";
 
 fn core_url() -> String {
-    std::env::var("MEV_CORE_URL").unwrap_or_else(|_| format!("http://{CORE_ADDR}/"))
+    if let Ok(url) = std::env::var("MEV_CORE_URL") {
+        return url;
+    }
+    if cfg!(debug_assertions) {
+        format!("http://{CORE_ADDR}/")
+    } else {
+        LIVE_CORE_URL.to_string()
+    }
+}
+
+fn uses_local_core() -> bool {
+    let url = core_url();
+    url.contains("127.0.0.1") || url.contains("localhost")
 }
 
 fn project_root() -> PathBuf {
@@ -41,7 +54,9 @@ fn spawn_core() -> Option<Child> {
 }
 
 fn ensure_core() -> Option<Child> {
-    if cfg!(debug_assertions) || core_is_up() {
+    // `tauri dev` sudah menjalankan desktop:serve. Installer rilis membuka webapp live,
+    // bukan Node lokal — tanpa itu jendela hanya menampilkan "Webapp utama belum berjalan di port 3000."
+    if cfg!(debug_assertions) || !uses_local_core() || core_is_up() {
         return None;
     }
     let child = spawn_core();

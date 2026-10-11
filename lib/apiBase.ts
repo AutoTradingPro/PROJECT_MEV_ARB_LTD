@@ -10,11 +10,14 @@ export function apiUrl(path: string): string {
   const suffix = path.startsWith("/") ? path : `/${path}`;
   if (typeof window !== "undefined") {
     const { protocol, hostname, port, origin } = window.location;
-    const local =
-      (protocol === "http:" || protocol === "https:") &&
-      (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]");
-    if (local && (port === "3000" || port === "4100")) {
-      return `${origin}${suffix}`;
+    if (protocol === "http:" || protocol === "https:") {
+      const local = hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
+      if (local && (port === "3000" || port === "4100")) {
+        return `${origin}${suffix}`;
+      }
+      if (!local) {
+        return `${origin}${suffix}`;
+      }
     }
   }
   return `${CORE_API_ORIGIN}${suffix}`;

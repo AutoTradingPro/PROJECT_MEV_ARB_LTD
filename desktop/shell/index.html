@@ -30,17 +30,26 @@
       <p><a href="http://127.0.0.1:4100/">Buka http://127.0.0.1:4100</a></p>
     </main>
     <script>
-      const target = "http://127.0.0.1:4100/";
+      const local = "http://127.0.0.1:4100/";
+      const live = "https://mevarbtech.netlify.app/engine";
       const status = document.getElementById("status");
-      async function openCore() {
+      async function localReady() {
         try {
-          await fetch(target, { mode: "no-cors" });
-          status.textContent = "Server siap. Membuka Core Engine…";
-          location.replace(target);
+          const res = await fetch(local, { method: "GET", cache: "no-store" });
+          const text = await res.text();
+          return res.ok && !text.includes("belum berjalan di port 3000");
         } catch {
-          status.textContent = "Menunggu server di port 4100…";
-          window.setTimeout(openCore, 700);
+          return false;
         }
+      }
+      async function openCore() {
+        if (await localReady()) {
+          status.textContent = "Server lokal siap. Membuka Core Engine…";
+          location.replace(local);
+          return;
+        }
+        status.textContent = "Membuka Core Engine online…";
+        location.replace(live);
       }
       openCore();
     </script>
