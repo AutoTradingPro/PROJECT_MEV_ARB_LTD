@@ -5,6 +5,7 @@ import {
 } from "@/lib/scanOnly/config.js";
 import { defaultDexIdsForChain, dexLabel } from "@/lib/bot/dexRegistry";
 import type { DexId } from "@/lib/bot/types";
+import { tokenPairContractKey } from "@/config/networks";
 import { getPair, pairsForChain } from "@/lib/chain/tokenPairs";
 import type { ChainId } from "@/lib/chain/networks";
 import type { ScanOnlyTarget } from "@/lib/scanOnly/types";
@@ -26,9 +27,15 @@ export function scanOnlyTargetsForChain(chainId: ChainId): ScanOnlyTarget[] {
   const dexBFallback = defaults[1] || defaults[0] || "uniswap-v2";
 
   const targets: ScanOnlyTarget[] = [];
+  const seenContracts = new Set<string>();
   for (let i = 0; i < pairIds.length; i++) {
     const pair = getPair(chainId, pairIds[i]) || catalog[i];
     if (!pair) continue;
+    const contractKey = tokenPairContractKey(pair);
+    if (contractKey) {
+      if (seenContracts.has(contractKey)) continue;
+      seenContracts.add(contractKey);
+    }
     const route = routes[i] || routes[0];
     const dexA = asDexId(route?.[0] || dexAFallback, dexAFallback);
     const dexB = asDexId(route?.[1] || dexBFallback, dexBFallback);

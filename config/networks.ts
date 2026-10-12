@@ -746,7 +746,6 @@ const POLYGON_PAIRS: TokenPairConfig[] = [
   pair({ id: "wbtc-weth-pol", label: "WBTC / WETH", baseSymbol: "WBTC", quoteSymbol: "WETH", baseIcon: ICONS.wbtc, quoteIcon: ICONS.weth, baseAddress: POLYGON_TOKENS.wbtc, quoteAddress: POLYGON_TOKENS.weth, baseDecimals: 8, quoteDecimals: 18 }),
   pair({ id: "link-weth-pol", label: "LINK / WETH", baseSymbol: "LINK", quoteSymbol: "WETH", baseIcon: ICONS.link, quoteIcon: ICONS.weth, baseAddress: POLYGON_TOKENS.link, quoteAddress: POLYGON_TOKENS.weth, baseDecimals: 18, quoteDecimals: 18 }),
   pair({ id: "aave-weth-pol", label: "AAVE / WETH", baseSymbol: "AAVE", quoteSymbol: "WETH", baseIcon: ICONS.aave, quoteIcon: ICONS.weth, baseAddress: POLYGON_TOKENS.aave, quoteAddress: POLYGON_TOKENS.weth, baseDecimals: 18, quoteDecimals: 18 }),
-  pair({ id: "matic-usdt-pol", label: "MATIC / USDT", baseSymbol: "MATIC", quoteSymbol: "USDT", baseIcon: ICONS.wmatic, quoteIcon: ICONS.usdt, baseAddress: POLYGON_TOKENS.wmatic, quoteAddress: POLYGON_TOKENS.usdt, baseDecimals: 18, quoteDecimals: 6 }),
   pair({ id: "dai-usdc-pol", label: "DAI / USDC", baseSymbol: "DAI", quoteSymbol: "USDC", baseIcon: ICONS.dai, quoteIcon: ICONS.usdc, baseAddress: POLYGON_TOKENS.dai, quoteAddress: POLYGON_TOKENS.usdc, baseDecimals: 18, quoteDecimals: 6 }),
   pair({ id: "crv-weth-pol", label: "CRV / WETH", baseSymbol: "CRV", quoteSymbol: "WETH", baseIcon: ICONS.crv, quoteIcon: ICONS.weth, baseAddress: POLYGON_TOKENS.crv, quoteAddress: POLYGON_TOKENS.weth, baseDecimals: 18, quoteDecimals: 18 }),
   pair({ id: "uni-weth-pol", label: "UNI / WETH", baseSymbol: "UNI", quoteSymbol: "WETH", baseIcon: ICONS.uni, quoteIcon: ICONS.weth, baseAddress: POLYGON_TOKENS.uni, quoteAddress: POLYGON_TOKENS.weth, baseDecimals: 18, quoteDecimals: 18 }),
@@ -1257,8 +1256,34 @@ export function getTradingNetwork(id: string): TradingNetworkConfig {
   return isTradingChainId(id) ? TRADING_NETWORKS[id] : TRADING_NETWORKS.polygon;
 }
 
+/** Kunci kontrak pair, urutan token diabaikan. Pair tanpa alamat tidak ikut dedupe. */
+export function tokenPairContractKey(pair: Pick<TokenPairConfig, "baseAddress" | "quoteAddress">): string | null {
+  const base = pair.baseAddress?.trim().toLowerCase();
+  const quote = pair.quoteAddress?.trim().toLowerCase();
+  if (!base || !quote) return null;
+  return base < quote ? `${base}|${quote}` : `${quote}|${base}`;
+}
+
+/**
+ * Satu pasar on-chain = satu baris. Entri pertama menang.
+ * MATIC/USDT dan WMATIC/USDT di Polygon memakai POLYGON_WMATIC yang sama.
+ */
+export function dedupeIdenticalTokenPairs(pairs: TokenPairConfig[]): TokenPairConfig[] {
+  const seen = new Set<string>();
+  const unique: TokenPairConfig[] = [];
+  for (const pair of pairs) {
+    const key = tokenPairContractKey(pair);
+    if (key) {
+      if (seen.has(key)) continue;
+      seen.add(key);
+    }
+    unique.push(pair);
+  }
+  return unique;
+}
+
 export function tradingPairsForChain(id: string): TokenPairConfig[] {
-  return getTradingNetwork(id).pairs;
+  return dedupeIdenticalTokenPairs(getTradingNetwork(id).pairs);
 }
 
 export interface ActiveNetwork {

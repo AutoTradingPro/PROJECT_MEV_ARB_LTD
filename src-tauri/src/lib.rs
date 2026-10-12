@@ -9,11 +9,22 @@ const CORE_HOST: &str = "127.0.0.1";
 const CORE_PORT: u16 = 4100;
 const LIVE_PORT: u16 = 4101;
 
+fn is_local_app_url(url: &str) -> bool {
+    let value = url.trim().to_ascii_lowercase();
+    value.starts_with("http://localhost:")
+        || value.starts_with("http://127.0.0.1:")
+        || value.starts_with("http://[::1]:")
+}
+
 fn core_http_url() -> String {
     if let Ok(url) = std::env::var("MEV_CORE_URL") {
-        return url;
+        let trimmed = url.trim();
+        if is_local_app_url(trimmed) {
+            return trimmed.to_string();
+        }
+        spawn_log(&format!("abaikan MEV_CORE_URL non-lokal: {trimmed}"));
     }
-    format!("http://{CORE_HOST}:{CORE_PORT}/engine")
+    format!("http://localhost:{CORE_PORT}/engine")
 }
 
 fn port_is_up(port: u16) -> bool {
@@ -164,33 +175,105 @@ fn spawn_core(app: &AppHandle) -> Option<Child> {
     }
 }
 
-fn wait_for_ports() {
-    for _ in 0..90 {
-        if port_is_up(CORE_PORT) {
-            break;
+fn wait_for_port(port: u16, attempts: u32, step: Duration) {
+    for _ in 0..attempts {
+        if port_is_up(port) {
+            return;
         }
-        std::thread::sleep(Duration::from_millis(500));
-    }
-    for _ in 0..20 {
-        if port_is_up(LIVE_PORT) {
-            break;
-        }
-        std::thread::sleep(Duration::from_millis(250));
+        std::thread::sleep(step);
     }
 }
 
-fn ensure_core(app: &AppHandle) -> Option<Child> {
-    if port_is_up(CORE_PORT) {
-        return None;
+fn spawn_logged(app: &AppHandle, label: &str, args: &[PathBuf], cwd: &Path) -> Option<Child> {
+    let node = win_node_path(node_bin(app));
+    let root = win_node_path(cwd.to_path_buf());
+    spawn_log(&format!(
+        "{label} node={} exists={} cwd={} exists={}",
+        node.display(),
+        node.exists(),
+        root.display(),
+        root.exists()
+    ));
+    let _ = std::fs::create_dir_all(root.join("data"));
+    let stdio_path = root.join("data").join("spawn-stdio.log");
+    let stdio = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&stdio_path)
+        .ok();
+    let mut cmd = Command::new(&node);
+    cmd.args(args.iter().map(|arg| win_node_path(arg.clone())))
+        .current_dir(&root)
+        .env("CORE_PORT", CORE_PORT.to_string())
+        .env("MEV_LIVE_PORT", LIVE_PORT.to_string())
+        .env("MEV_CORE_ROOT", &root)
+        .env("MEV_DESKTOP_CORE", "1")
+        .env("HOSTNAME", CORE_HOST)
+        .env("PORT", CORE_PORT.to_string())
+        .env("NODE_ENV", "production")
+        .stdin(Stdio::null());
+    if let Some(file) = stdio {
+        if let Ok(err) = file.try_clone() {
+            cmd.stdout(Stdio::from(file)).stderr(Stdio::from(err));
+        }
+    } else {
+        cmd.stdout(Stdio::null()).stderr(Stdio::null());
     }
-    let child = spawn_core(app);
-    wait_for_ports();
-    child
+    apply_hidden(&mut cmd);
+    match cmd.spawn() {
+        Ok(child) => {
+            spawn_log(&format!("{label} spawn ok pid={}", child.id()));
+            Some(child)
+        }
+        Err(error) => {
+            spawn_log(&format!("{label} spawn error: {error}"));
+            None
+        }
+    }
 }
 
-fn stop_core(core: &Arc<Mutex<Option<Child>>>) {
-    if let Ok(mut guard) = core.lock() {
-        if let Some(mut child) = guard.take() {
+fn spawn_live_hub(app: &AppHandle) -> Option<Child> {
+    let root = win_node_path(core_root(app));
+    let bundled = root.join("searcher.cjs");
+    if bundled.is_file() {
+        return spawn_logged(app, "live-hub", &[bundled], &root);
+    }
+    let project = project_root();
+    let tsx = project.join("node_modules").join("tsx").join("dist").join("cli.mjs");
+    let entry = project.join("searcher").join("index.ts");
+    if tsx.is_file() && entry.is_file() {
+        return spawn_logged(app, "live-hub", &[tsx, entry], &project);
+    }
+    spawn_log("live hub: searcher.cjs dan searcher/index.ts tidak ditemukan");
+    None
+}
+
+fn ensure_services(app: &AppHandle) -> Vec<Child> {
+    let mut children = Vec::new();
+    if !port_is_up(CORE_PORT) {
+        if let Some(child) = spawn_core(app) {
+            children.push(child);
+        }
+        wait_for_port(CORE_PORT, 90, Duration::from_millis(500));
+    }
+    if !port_is_up(LIVE_PORT) && !children.is_empty() {
+        wait_for_port(LIVE_PORT, 40, Duration::from_millis(250));
+    }
+    if !port_is_up(LIVE_PORT) {
+        if let Some(child) = spawn_live_hub(app) {
+            children.push(child);
+        }
+        wait_for_port(LIVE_PORT, 40, Duration::from_millis(250));
+    }
+    if !port_is_up(LIVE_PORT) {
+        spawn_log("WebSocket hub 4101 belum menjawab setelah aplikasi desktop dibuka");
+    }
+    children
+}
+
+fn stop_cores(cores: &Arc<Mutex<Vec<Child>>>) {
+    if let Ok(mut guard) = cores.lock() {
+        for mut child in guard.drain(..) {
             let pid = child.id();
             #[cfg(windows)]
             {
@@ -206,15 +289,15 @@ fn stop_core(core: &Arc<Mutex<Option<Child>>>) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let core = Arc::new(Mutex::new(None::<Child>));
-    let core_for_setup = Arc::clone(&core);
-    let core_for_exit = Arc::clone(&core);
+    let cores = Arc::new(Mutex::new(Vec::<Child>::new()));
+    let cores_for_setup = Arc::clone(&cores);
+    let cores_for_exit = Arc::clone(&cores);
 
     tauri::Builder::default()
         .setup(move |app| {
-            let child = ensure_core(app.handle());
-            if let Ok(mut guard) = core_for_setup.lock() {
-                *guard = child;
+            let children = ensure_services(app.handle());
+            if let Ok(mut guard) = cores_for_setup.lock() {
+                *guard = children;
             }
             if let Some(window) = app.get_webview_window("main") {
                 if let Ok(url) = core_http_url().parse() {
@@ -227,7 +310,7 @@ pub fn run() {
         .expect("MEV Core Engine window failed to start")
         .run(move |_app, event| {
             if matches!(event, tauri::RunEvent::Exit) {
-                stop_core(&core_for_exit);
+                stop_cores(&cores_for_exit);
             }
         });
 }

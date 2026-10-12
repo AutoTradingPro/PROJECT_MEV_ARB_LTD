@@ -56,7 +56,13 @@ if (existsSync(staticSrc)) {
 
 const publicSrc = path.join(root, "public");
 if (existsSync(publicSrc)) {
-  cpSync(publicSrc, path.join(dest, "public"), { recursive: true });
+  cpSync(publicSrc, path.join(dest, "public"), {
+    recursive: true,
+    filter: (source) => {
+      const rel = path.relative(publicSrc, source).replaceAll("\\", "/");
+      return rel !== "downloads" && !rel.startsWith("downloads/");
+    },
+  });
 }
 
 copyFileSync(path.join(root, "scripts", "core-runtime.mjs"), path.join(dest, "core-runtime.mjs"));

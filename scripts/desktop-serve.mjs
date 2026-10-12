@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const nextBin = path.join(root, "node_modules", "next", "dist", "bin", "next");
 const coreScript = path.join(root, "scripts", "core-standalone.mjs");
+const tsxCli = path.join(root, "node_modules", "tsx", "dist", "cli.mjs");
+const searcherEntry = path.join(root, "searcher", "index.ts");
 const children = [];
 
 function portOpen(port) {
@@ -71,7 +73,7 @@ if (!(await portOpen(3000))) {
 }
 
 if (!(await portOpen(4100))) {
-  console.log("[desktop] menyalakan MEV Core Engine di http://127.0.0.1:4100");
+  console.log("[desktop] menyalakan MEV Core Engine di http://localhost:4100");
   own(
     spawn(process.execPath, [coreScript], {
       cwd: root,
@@ -79,6 +81,7 @@ if (!(await portOpen(4100))) {
       env: {
         ...process.env,
         CORE_PORT: process.env.CORE_PORT || "4100",
+        MEV_LIVE_PORT: process.env.MEV_LIVE_PORT || "4101",
         MAIN_APP_URL: process.env.MAIN_APP_URL || "http://127.0.0.1:3000",
       },
     })
@@ -88,5 +91,28 @@ if (!(await portOpen(4100))) {
   console.log("[desktop] MEV Core Engine sudah berjalan di port 4100");
 }
 
-console.log("[desktop] jendela Tauri dapat membuka http://127.0.0.1:4100");
+let liveHubUp = false;
+for (let attempt = 0; attempt < 20 && !liveHubUp; attempt += 1) {
+  liveHubUp = await portOpen(4101);
+  if (!liveHubUp) await sleep(250);
+}
+if (!liveHubUp) {
+  console.log("[desktop] menyalakan WebSocket hub di ws://127.0.0.1:4101");
+  own(
+    spawn(process.execPath, [tsxCli, searcherEntry], {
+      cwd: root,
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        MEV_LIVE_PORT: process.env.MEV_LIVE_PORT || "4101",
+        MEV_DESKTOP_CORE: "1",
+      },
+    })
+  );
+  await waitForPort(4101, "WebSocket hub");
+} else {
+  console.log("[desktop] WebSocket hub sudah berjalan di port 4101");
+}
+
+console.log("[desktop] jendela Tauri membuka http://localhost:4100");
 await new Promise(() => {});
