@@ -121,11 +121,11 @@ Tambahan setelah 11 Oktober adalah akrual rutin 1–15 Oktober **Rp 936.000,00**
 | --- | --- | ---: |
 | Mutasi rekening & nota (Agustus) | Indomaret, biaya kartu/adm, pulsa, GoPay/DANA, QR toko, tarikan tunai ATM | Rp 1.331.500,00 |
 | Inventaris / hardware | Mouse Bluetooth ROBOT (30 Agustus) | Rp 100.000,00 |
-| Pengeluaran pribadi / konsumsi | Belanja pribadi 13 Agustus Rp 128.161,00 · beras 5 kg 9 September Rp 89.000,00 · belanja bulanan 22 September Rp 106.800,00 (rincian di bawah) | Rp 323.961,00 |
+| Pengeluaran pribadi / konsumsi | Belanja pribadi 13 Agustus Rp 128.161,00 · beras 5 kg 9 September Rp 89.000,00 · belanja bulanan 22 September Rp 106.800,00 · beras 5 kg 14 Oktober Rp 88.000,00 | Rp 411.961,00 |
 | Prive owner | Tarik ATM 9 September | Rp 100.000,00 |
 | Deposit exchange | Indodax 20 Agustus Rp 200.736,00 · Tokocrypto 6 September Rp 200.000,00 | Rp 400.736,00 |
 | Alokasi modal Trust Wallet ETH (Arbitrum) | 7, 8, 10, 10 September (uji arbitrase) | Rp 600.000,00 |
-| **Subtotal non-opex** | | **Rp 2.856.197,00** |
+| **Subtotal non-opex** | | **Rp 2.944.197,00** |
 
 ### Utilitas PDAM 8 Oktober 2026
 
@@ -154,12 +154,14 @@ Kategori: **Belanja Bulanan / Kebutuhan Sehari-hari**.
 | Kas awal | Rp 0,00 |
 | Kas masuk (setoran modal) | Rp 10.500.000,00 |
 | Akumulasi OpEx wajib | Rp 7.458.831,36 |
-| Pengeluaran non-opex | Rp 2.856.197,00 |
-| **Total pengeluaran (semua pos kas keluar)** | **Rp 10.315.028,36** |
-| **Saldo akhir buku** | **Rp 184.971,64** |
+| Pengeluaran non-opex | Rp 2.944.197,00 |
+| **Total pengeluaran (semua pos kas keluar)** | **Rp 10.403.028,36** |
+| **Saldo akhir buku** | **Rp 96.971,64** |
 
-Saldo akhir = kas awal Rp 0,00 + kas masuk − total pengeluaran = `10.500.000,00 − 10.315.028,36 = 184.971,64`.
+Saldo akhir = kas awal Rp 0,00 + kas masuk − total pengeluaran = `10.500.000,00 − 10.403.028,36 = 96.971,64`.
+
+Pembelian beras 5 kg pada 14 Oktober 2026 sebesar Rp 88.000,00 mengurangi saldo tutup buku 15 Oktober (sebelumnya Rp 184.971,64).
 
 Selisih terhadap tutup buku 11 Oktober (saldo Rp 1.120.971,64) adalah akrual rutin 1–15 Oktober: **Rp 936.000,00**.
 
-Dengan run-rate Rp 74.851,68 / hari, saldo akhir cukup untuk sekitar **2 hari** operasional, belum termasuk perpanjangan RPC berikutnya.
+Dengan run-rate Rp 74.851,68 / hari, saldo akhir cukup untuk sekitar **1 hari** operasional, belum termasuk perpanjangan RPC berikutnya.

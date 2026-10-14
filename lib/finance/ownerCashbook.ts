@@ -312,6 +312,13 @@ export const OWNER_PERSONAL_EXPENSES: OwnerInventoryItem[] = [
     amountIdr: 8_800,
     note: "Rincian 2 dari 2 · total struk IDM TQ52 DIPONEGORO BOJ Rp 106.800,00",
   },
+  {
+    id: "rt-beras-2026-10-14",
+    date: "2026-10-14",
+    item: "Pembelian beras 5 kg",
+    category: "Konsumsi / Kebutuhan Rumah Tangga",
+    amountIdr: 88_000,
+  },
 ];
 
 /** Prive owner — penarikan dana pribadi (bukan opex bot). */
