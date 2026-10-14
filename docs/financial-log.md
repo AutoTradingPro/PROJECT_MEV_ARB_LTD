@@ -1,6 +1,6 @@
 # Catatan keuangan operasional infrastruktur bot
 
-Buku ditutup **30 September 2026** (hari ini). Periode buku: **1 Agustus — 30 September 2026**. Nominal mengikuti struk transaksi perbankan digital (dua desimal, pemisah ribuan titik, desimal koma). Sumber pencatatan kas: `lib/finance/ownerCashbook.ts` (Laporan Keuangan owner); semua angka di bawah sama dengan hasil `buildAugust2026Cashbook()`.
+Buku ditutup **15 Oktober 2026**. Periode buku: **1 Agustus — 15 Oktober 2026**. Akrual opex rutin (kuota, rokok, snack, kopi, token listrik) dilanjutkan dari 1 Oktober sampai **15 Oktober 2026**. Nominal mengikuti struk transaksi perbankan digital (dua desimal, pemisah ribuan titik, desimal koma). Sumber pencatatan kas: `lib/finance/ownerCashbook.ts` (Laporan Keuangan owner); semua angka di bawah sama dengan hasil `buildAugust2026Cashbook()`.
 
 Mata uang buku: **IDR**. Kas awal tercatat: **Rp 0,00**.
 
@@ -39,8 +39,11 @@ Porsi harian RPC dihitung dari struk terakhir (QuickNode, 18 September). QuickNo
 | 25 September 2026 | Cursor AI (Cursor Usage Mid Aug) | Langganan / Software / AI Tool | Blu Virtual Card (BCA Digital) | **Sudah terbit ke kas** | Rp 372.536,20 |
 | 27 September 2026 | Google One / Google AI Plus (400 GB) | Pengeluaran Rutin / Langganan Software & Cloud | — | **Sudah terbit ke kas** | Rp 19.000,00 |
 | 30 September 2026 21:46:02 | Cursor AI (Cursor Usage Mid Aug) | Pengeluaran | bluVirtual Card · Debit Online · No. Ref 0930 8602 8480 · kartu 0813 | **Sudah terbit ke kas** | Rp 745.951,55 |
+| 11 Oktober 2026 21:53:33 | Pembayaran Langganan Cursor AI (bluVirtual Card) | Operasional / Software & Subskripsi | bluVirtual Card · Lunas / Sukses | **Sudah terbit ke kas** | Rp 368.405,67 |
 
 Keterangan Cursor AI 30 September: pembayaran tagihan langganan / penggunaan Cursor Usage Mid Aug, kategori **Pengeluaran**.
+
+Keterangan Cursor AI 11 Oktober: pembayaran langganan Cursor AI via bluVirtual Card, kategori **Operasional / Software & Subskripsi**, status **Lunas / Sukses**.
 
 ## 4. Pengeluaran rutin sampai 30 September 2026
 
@@ -63,9 +66,22 @@ Keterangan Cursor AI 30 September: pembayaran tagihan langganan / penggunaan Cur
 | Snack | 7 Agustus – 30 September | 55 hari | Rp 660.000,00 |
 | Kopi | 7 Agustus – 30 September | 55 hari | Rp 550.000,00 |
 | Token listrik | 8, 13, 18, 23, 28 Agustus · 2, 7, 12, 17, 22, 27 September | 11 kali | Rp 242.000,00 |
-| **Subtotal opex harian + berkala** | | | **Rp 3.360.000,00** |
+| **Subtotal opex harian + berkala s.d. 30 September** | | | **Rp 3.360.000,00** |
 
-**Posted 30 September 2026 (hari tutup buku):** kuota + konsumsi Rp 58.000,00 + Cursor AI Rp 745.951,55 + porsi RPC Rp 12.451,68 = **Rp 816.403,23**. Tidak ada jadwal token listrik hari ini (terakhir 27 September, berikutnya 2 Oktober).
+Lanjutan 1–15 Oktober 2026 (15 hari, aturan sama):
+
+| Pos | Periode | Hari / kali | Total |
+| --- | --- | ---: | ---: |
+| Kuota 8 GB | 1–15 Oktober | 15 hari | Rp 180.000,00 |
+| Rokok “Gajah Baru” | 1–15 Oktober | 15 hari | Rp 360.000,00 |
+| Snack | 1–15 Oktober | 15 hari | Rp 180.000,00 |
+| Kopi | 1–15 Oktober | 15 hari | Rp 150.000,00 |
+| Token listrik | 2, 7, 12 Oktober | 3 kali | Rp 66.000,00 |
+| **Tambahan opex rutin Oktober** | | | **Rp 936.000,00** |
+
+Akumulasi opex harian + berkala 7 Agustus – 15 Oktober: kuota 64 hari Rp 768.000,00 · rokok 70 hari Rp 1.680.000,00 · snack 70 hari Rp 840.000,00 · kopi 70 hari Rp 700.000,00 · token listrik 14 kali Rp 308.000,00 = **Rp 4.296.000,00**.
+
+**Posted 15 Oktober 2026 (hari tutup buku):** kuota + konsumsi Rp 58.000,00 + porsi RPC Rp 12.451,68 = **Rp 70.451,68**. Tidak ada jadwal token listrik hari ini (terakhir 12 Oktober, berikutnya 17 Oktober).
 
 ### Mingguan (24–30 September 2026)
 
@@ -85,9 +101,19 @@ Opex harian 7 hari (Rp 406.000,00) + token listrik 27 September (Rp 22.000,00) +
 | Cursor AI 25 dan 30 September | Rp 1.118.487,75 |
 | **OpEx bulan berjalan** | **Rp 4.197.104,44** |
 
+### Oktober berjalan (1–15 Oktober 2026)
+
+Opex harian 15 hari (Rp 870.000,00) + token listrik 2, 7, 12 Oktober (Rp 66.000,00) + PDAM 8 Oktober (Rp 102.500,00) + Cursor AI 11 Oktober (Rp 368.405,67).
+
+**OpEx bulan berjalan: Rp 1.406.905,67**
+
+Mingguan 9–15 Oktober: opex harian 7 hari (Rp 406.000,00) + token listrik 12 Oktober (Rp 22.000,00) + Cursor AI 11 Oktober (Rp 368.405,67) = **Rp 796.405,67**.
+
 ### Akumulasi OpEx wajib (kuota, konsumsi, token, RPC, PDAM, langganan terbit)
 
-`3.360.000,00 + 1.451.937,94 + 102.500,00 + 1.137.487,75` = **Rp 6.051.925,69** sampai 30 September 2026.
+`4.296.000,00 + 1.451.937,94 + 205.000,00 + 1.505.893,42` = **Rp 7.458.831,36** sampai 15 Oktober 2026.
+
+Tambahan setelah 11 Oktober adalah akrual rutin 1–15 Oktober **Rp 936.000,00** (termasuk token 2, 7, dan 12 Oktober). PDAM 8 Oktober dan Cursor AI 11 Oktober sudah masuk sebelumnya.
 
 ## 5. Pengeluaran non-opex
 
@@ -100,6 +126,16 @@ Opex harian 7 hari (Rp 406.000,00) + token listrik 27 September (Rp 22.000,00) +
 | Deposit exchange | Indodax 20 Agustus Rp 200.736,00 · Tokocrypto 6 September Rp 200.000,00 | Rp 400.736,00 |
 | Alokasi modal Trust Wallet ETH (Arbitrum) | 7, 8, 10, 10 September (uji arbitrase) | Rp 600.000,00 |
 | **Subtotal non-opex** | | **Rp 2.856.197,00** |
+
+### Utilitas PDAM 8 Oktober 2026
+
+Kategori: **Operasional / Utilitas**. Status: **Lunas / Sukses**.
+
+| Rincian | IDR |
+| --- | ---: |
+| Pembayaran Utilitas PDAM, 14:25:44 WIB (termasuk biaya admin BI FAST Rp 2.500,00) | Rp 102.500,00 |
+
+Subtotal utilitas PDAM (9 September Rp 102.500,00 + 8 Oktober Rp 102.500,00) = **Rp 205.000,00**.
 
 ### Belanja bulanan 22 September 2026 — IDM TQ52 DIPONEGORO BOJ
 
@@ -117,11 +153,13 @@ Kategori: **Belanja Bulanan / Kebutuhan Sehari-hari**.
 | --- | ---: |
 | Kas awal | Rp 0,00 |
 | Kas masuk (setoran modal) | Rp 10.500.000,00 |
-| Akumulasi OpEx wajib | Rp 6.051.925,69 |
+| Akumulasi OpEx wajib | Rp 7.458.831,36 |
 | Pengeluaran non-opex | Rp 2.856.197,00 |
-| **Total pengeluaran (semua pos kas keluar)** | **Rp 8.908.122,69** |
-| **Saldo akhir buku** | **Rp 1.591.877,31** |
+| **Total pengeluaran (semua pos kas keluar)** | **Rp 10.315.028,36** |
+| **Saldo akhir buku** | **Rp 184.971,64** |
 
-Saldo akhir = kas awal Rp 0,00 + kas masuk − total pengeluaran = `10.500.000,00 − 8.908.122,69 = 1.591.877,31`.
+Saldo akhir = kas awal Rp 0,00 + kas masuk − total pengeluaran = `10.500.000,00 − 10.315.028,36 = 184.971,64`.
 
-Dengan run-rate Rp 74.851,68 / hari, saldo akhir cukup untuk sekitar **21 hari** operasional, belum termasuk perpanjangan RPC berikutnya.
+Selisih terhadap tutup buku 11 Oktober (saldo Rp 1.120.971,64) adalah akrual rutin 1–15 Oktober: **Rp 936.000,00**.
+
+Dengan run-rate Rp 74.851,68 / hari, saldo akhir cukup untuk sekitar **2 hari** operasional, belum termasuk perpanjangan RPC berikutnya.

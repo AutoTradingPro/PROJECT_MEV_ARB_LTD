@@ -55,6 +55,8 @@ export interface OwnerMonthlySubscription {
 export interface OwnerInventoryItem {
   id: string;
   date: string;
+  /** Jam WIB `HH:mm:ss` bila ada di struk. */
+  time?: string;
   item: string;
   category: string;
   amountIdr: number;
@@ -243,6 +245,15 @@ export const OWNER_UTILITY_EXPENSES: OwnerInventoryItem[] = [
     amountIdr: 2_500,
     note: "16:08:43 WIB · Biaya admin Rp 2.500,00 · No. Ref 20260909CENAIDJA51036030198",
   },
+  {
+    id: "util-pdam-2026-10-08",
+    date: "2026-10-08",
+    time: "14:25:44",
+    item: "Pembayaran Utilitas PDAM (termasuk biaya admin BI FAST Rp 2.500)",
+    category: "Operasional / Utilitas",
+    amountIdr: 102_500,
+    note: "14:25:44 WIB · Lunas / Sukses · termasuk biaya admin BI FAST Rp 2.500,00",
+  },
 ];
 
 /** Inventaris / hardware pendukung — belanja aset operasional (kas keluar). */
@@ -260,6 +271,7 @@ export const OWNER_INVENTORY_ITEMS: OwnerInventoryItem[] = [
 function taggedExpenseToEntries(items: OwnerInventoryItem[]): OwnerCashbookEntry[] {
   return items.map((item) => ({
     date: item.date,
+    time: item.time,
     kind: "outflow",
     amountIdr: item.amountIdr,
     label: item.item,
@@ -367,8 +379,11 @@ export const OWNER_WEB3_DEPOSITS: OwnerInventoryItem[] = [
   },
 ];
 
-/** Tanggal tutup buku — 30 September 2026. */
-export const CASHBOOK_AS_OF = "2026-09-30";
+/** Akhir akrual opex rutin (kuota, konsumsi, token listrik) — sampai hari buku. */
+export const RECURRING_OPEX_THROUGH = "2026-10-15";
+
+/** Tanggal tutup buku — hari terakhir pengeluaran rutin yang sudah dicatat. */
+export const CASHBOOK_AS_OF = "2026-10-15";
 
 type RecurringOpexSpec = {
   id: string;
@@ -389,10 +404,10 @@ export const OWNER_QUOTA_OPEX: RecurringOpexSpec = {
   unitPriceIdr: 12_000,
   qtyPerDay: 1,
   startDate: "2026-08-13",
-  endDate: CASHBOOK_AS_OF,
+  endDate: RECURRING_OPEX_THROUGH,
 };
 
-/** Konsumsi harian owner 7 Agustus — tanggal tutup buku. */
+/** Konsumsi harian owner 7 Agustus — 15 Oktober 2026. */
 export const OWNER_DAILY_CONSUMABLES: RecurringOpexSpec[] = [
   {
     id: "rokok",
@@ -401,7 +416,7 @@ export const OWNER_DAILY_CONSUMABLES: RecurringOpexSpec[] = [
     unitPriceIdr: 12_000,
     qtyPerDay: 2,
     startDate: "2026-08-07",
-    endDate: CASHBOOK_AS_OF,
+    endDate: RECURRING_OPEX_THROUGH,
   },
   {
     id: "snack",
@@ -410,7 +425,7 @@ export const OWNER_DAILY_CONSUMABLES: RecurringOpexSpec[] = [
     unitPriceIdr: 12_000,
     qtyPerDay: 1,
     startDate: "2026-08-07",
-    endDate: CASHBOOK_AS_OF,
+    endDate: RECURRING_OPEX_THROUGH,
   },
   {
     id: "kopi",
@@ -419,7 +434,7 @@ export const OWNER_DAILY_CONSUMABLES: RecurringOpexSpec[] = [
     unitPriceIdr: 5_000,
     qtyPerDay: 2,
     startDate: "2026-08-07",
-    endDate: CASHBOOK_AS_OF,
+    endDate: RECURRING_OPEX_THROUGH,
   },
 ];
 
@@ -431,7 +446,7 @@ export const OWNER_TOKEN_LISTRIK_OPEX: RecurringOpexSpec = {
   unitPriceIdr: 22_000,
   qtyPerDay: 1,
   startDate: "2026-08-08",
-  endDate: CASHBOOK_AS_OF,
+  endDate: RECURRING_OPEX_THROUGH,
   intervalDays: 5,
 };
 
@@ -473,6 +488,17 @@ export const OWNER_MONTHLY_SUBSCRIPTIONS: OwnerMonthlySubscription[] = [
     active: true,
     paidAt: "21:46:02",
     note: "21:46:02 WIB · bluVirtual Card (BCA Digital) · Debit Online · No. Ref 0930 8602 8480 · kartu berakhir 0813",
+  },
+  {
+    id: "sub-cursor-ai-2026-10-11",
+    item: "Pembayaran Langganan Cursor AI (bluVirtual Card)",
+    category: "Operasional / Software & Subskripsi",
+    amountIdr: 368_405.67,
+    frequency: "monthly",
+    nextPaymentDate: "2026-10-11",
+    paidAt: "21:53:33",
+    active: true,
+    note: "21:53:33 WIB · bluVirtual Card · Lunas / Sukses",
   },
 ];
 
@@ -794,7 +820,7 @@ export function buildAugust2026Cashbook(openingIdr = 0): OwnerCashbook {
   return {
     id: "owner-cash-2026",
     currency: "IDR",
-    periodLabel: "1 Agustus — 30 September 2026",
+    periodLabel: "1 Agustus — 15 Oktober 2026",
     source:
       "Mutasi rekening, nota, inventaris, belanja pribadi, prive owner, deposit exchange, alokasi modal Trust Wallet ETH (uji arbitrase), infrastruktur RPC (ANKR / Blockmachine / QuickNode), utilitas PDAM, langganan bulanan (Google One, Cursor AI), kuota, token listrik, dan konsumsi harian owner",
     openingIdr: opening,
