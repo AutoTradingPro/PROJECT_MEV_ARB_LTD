@@ -1,0 +1,11 @@
+{
+  "name": "mev-arb-app",
+  "install": "npm ci",
+  "terminals": [
+    {
+      "name": "next-dev",
+      "command": "npm run dev",
+      "description": "Next.js 16 dev server (Turbopack) on http://localhost:3000. The app redirects / to /markets. Public RPC defaults are used, so no secrets are required to browse the UI or hit read-only API routes; add RPC keys from env.example to .env.local to enable live chain data."
+    }
+  ]
+}
